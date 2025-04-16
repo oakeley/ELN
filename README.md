@@ -60,18 +60,33 @@ The Ollama integration (mistral-small3.1 model) provides AI capabilities:
 The project is organized into a cohesive structure:
 ```
 electronic-lab-notebook/
-├── app/  # Flask application
-│   ├── static/  # Frontend assets
-│   ├── templates/  # HTML templates
-│   ├── models.py  # Database models
-│   ├── routes.py  # API endpoints
-│   ├── utils.py  # Utility functions
-│   ├── neo4j_integration.py  # Neo4j database integration
-│   ├── github_integration.py  # GitHub API integration
-│   ├── ollama_integration.py  # Ollama AI integration
-│   └── latex_export.py  # PDF export functionality
-├── config.py  # Application configuration
-└── run.py  # Application entry point
+├── app/
+│   ├── static/
+│   │   ├── css/
+│   │   │   └── styles.css
+│   │   ├── js/
+│   │   │   ├── main.js
+│   │   │   └── tests.js
+│   │   └── uploads/
+│   ├── templates/
+│   │   ├── index.html
+│   │   └── latex_template.tex
+│   ├── __init__.py
+│   ├── models.py
+│   ├── utils.py
+│   ├── routes.py
+│   ├── github_integration.py
+│   ├── neo4j_integration.py
+│   ├── ollama_integration.py
+│   └── latex_export.py
+├── tests/
+│   ├── test_routes.py
+│   ├── test_database.py
+│   ├── test_github.py
+│   └── test_integration.py
+├── config.py
+├── requirements.txt
+└── run.py
 ```
 
 ## How to Run
