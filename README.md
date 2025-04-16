@@ -1,152 +1,196 @@
 # Electronic Laboratory Notebook for Programmers
 
-This implementation provides a fully functional Electronic Laboratory Notebook system with the following features:
+A comprehensive web-based laboratory notebook system for research documentation with GitHub SSH integration, AI-powered search, and PDF export capabilities.
 
-## Key Components
+## Features
 
-1. **Web-Based Front End**
-   - Modern responsive UI using Bootstrap 5
-   - JavaScript-based single-page application
-   - Interactive project and file management
+- **Project Management**: Organize your research into projects
+- **File Management**: Store text notes and experimental images
+- **Version Control**: Track all changes to files with automatic versioning
+- **GitHub Integration**: Securely sync projects with GitHub repositories using SSH
+- **AI-Powered Search**: Find connections between projects using the Ollama model
+- **Neo4j Graph Database**: Store relationships between research elements
+- **Image Enhancement**: Process images with Stable Diffusion or Ollama
+- **PDF Export**: Generate professional reports with LaTeX
 
-2. **Backend API**
-   - RESTful Flask API for data management
-   - Authentication system with user accounts
-   - File upload and management
-   - Project organization
+## System Requirements
 
-3. **Database Integration**
-   - SQLAlchemy for relational data storage
-   - Neo4j for graph-based data connections and search
-   - Version control for all file changes
+- Python 3.8+
+- Neo4j Database
+- Ollama with mistral-small3.1 model (optional)
+- Stable Diffusion (optional)
+- Git and SSH keys for GitHub integration
 
-4. **GitHub Integration with SSH**
-   - Publish projects to GitHub repositories using SSH authentication
-   - Import projects from existing GitHub repositories
-   - Synchronize changes between local projects and GitHub
-   - Secure SSH key-based authentication
+## Installation
 
-5. **Ollama AI Integration**
-   - Semantic search across projects and files
-   - Image analysis and enhancement
-   - Keyword extraction for better organization
-   - Connection discovery between related projects
-
-6. **PDF Export via LaTeX**
-   - Professional PDF report generation
-   - Customizable LaTeX template
-   - Support for text and image content
-
-## System Architecture
-
-The system follows a classic MVC architecture:
-
-- **Models**: SQLAlchemy models for users, projects, files, and versions
-- **Views**: HTML templates with Bootstrap styling
-- **Controllers**: Flask routes handling API endpoints
-
-Neo4j provides a graph database layer that enhances the system with:
-- Knowledge graph capabilities
-- Semantic connections between projects and files
-- Enhanced search functionality
-
-The Ollama integration (mistral-small3.1 model) provides AI capabilities:
-- Text analysis and comprehension
-- Multimodal image analysis
-- Vector-based search
-- Natural language processing
-
-## Implementation Details
-
-The project is organized into a cohesive structure:
-```
-electronic-lab-notebook/
-├── app/
-│   ├── static/
-│   │   ├── css/
-│   │   │   └── styles.css
-│   │   ├── js/
-│   │   │   ├── main.js
-│   │   │   └── tests.js
-│   │   └── uploads/
-│   ├── templates/
-│   │   ├── index.html
-│   │   └── latex_template.tex
-│   ├── __init__.py
-│   ├── models.py
-│   ├── utils.py
-│   ├── routes.py
-│   ├── github_integration.py
-│   ├── neo4j_integration.py
-│   ├── ollama_integration.py
-│   └── latex_export.py
-├── tests/
-│   ├── test_routes.py
-│   ├── test_database.py
-│   ├── test_github.py
-│   └── test_integration.py
-├── config.py
-├── requirements.txt
-└── run.py
-```
-
-## How to Run
-
-1. Install dependencies:
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/yourusername/electronic-lab-notebook.git
+   cd electronic-lab-notebook
    ```
+
+2. Install dependencies:
+   ```bash
    pip install -r requirements.txt
    ```
 
-2. Setup SSH keys for GitHub:
-   - Generate SSH keys if you don't have them:
-     ```
-     ssh-keygen -t ed25519 -C "your_email@example.com"
-     ```
-   - Add the SSH key to your GitHub account:
-     - Copy your public key: `cat ~/.ssh/id_ed25519.pub`
-     - Go to GitHub → Settings → SSH and GPG keys → New SSH key
-     - Paste your key and save
+3. Set up SSH for GitHub:
+   ```bash
+   python scripts/setup_github_ssh.py
+   ```
+   This script will:
+   - Check for existing SSH keys
+   - Generate new keys if needed
+   - Guide you through adding them to GitHub
+   - Test the connection
 
-3. Setup environment variables:
-   - Create a `.env` file with the following settings:
-     ```
-     SECRET_KEY=your-secret-key
-     NEO4J_URI=bolt://localhost:7687
-     NEO4J_USER=neo4j
-     NEO4J_PASSWORD=your-password
-     GITHUB_USERNAME=your-github-username
-     GITHUB_SSH_KEY_PATH=~/.ssh/id_ed25519
-     GITHUB_SSH_PUB_KEY_PATH=~/.ssh/id_ed25519.pub
-     GIT_USER_NAME="Your Name"
-     GIT_USER_EMAIL="your_email@example.com"
-     OLLAMA_API_URL=http://localhost:11434/api/generate
-     ```
-
-4. Initialize the database:
-   - Make sure Neo4j is running
-   - The SQLite database will be created automatically on first run
+4. Configure environment variables:
+   ```bash
+   cp .env.example .env
+   ```
+   Edit the `.env` file to set:
+   - `GITHUB_USERNAME`: Your GitHub username
+   - `GITHUB_SSH_KEY_PATH`: Path to your SSH private key (default: `~/.ssh/id_ed25519`)
+   - `GITHUB_SSH_PUB_KEY_PATH`: Path to your SSH public key (default: `~/.ssh/id_ed25519.pub`)
+   - `NEO4J_URI`, `NEO4J_USER`, `NEO4J_PASSWORD`: Neo4j database connection details
+   - `GIT_USER_NAME`, `GIT_USER_EMAIL`: Git configuration for commits
 
 5. Run the application:
-   ```
+   ```bash
    python run.py
    ```
 
-6. Access the application at `http://localhost:5000`
+6. Access the application at: [http://localhost:5000](http://localhost:5000)
+
+## Testing
+
+The application comes with a comprehensive test suite covering various aspects of functionality:
+
+### Running Tests
+
+Run all tests:
+```bash
+python -m unittest discover tests
+```
+
+Run specific test files:
+```bash
+python -m unittest tests/test_database.py
+python -m unittest tests/test_github.py
+python -m unittest tests/test_integration.py
+python -m unittest tests/test_routes.py
+```
+
+### Test Coverage
+
+The test suite includes:
+
+1. **Database Model Tests** (`test_database.py`)
+   - Tests all database models and their relationships
+   - Validates model attributes and behaviors
+   - Tests cascade operations and integrity constraints
+   - Ensures proper versioning of files
+
+2. **GitHub Integration Tests** (`test_github.py`)
+   - Tests SSH key verification
+   - Tests repository creation, checking, and deletion
+   - Tests project publishing to GitHub
+   - Tests importing projects from GitHub repositories
+   - Validates handling of various GitHub URL formats
+
+3. **API Route Tests** (`test_routes.py`)
+   - Tests all API endpoints
+   - Validates authentication and authorization
+   - Tests file operations (create, read, update, delete)
+   - Tests project management functionality
+   - Tests image enhancement and PDF export endpoints
+   - Verifies proper error handling
+
+4. **Integration Tests** (`test_integration.py`)
+   - Tests cross-component workflows
+   - Validates the interaction between different system parts
+   - Tests end-to-end user workflows
+   - Ensures components work together correctly
+
+### Testing External Services
+
+The tests use mocks for external services:
+- Neo4j database operations
+- GitHub API and Git operations
+- Ollama AI model interactions
+- Filesystem operations for files and images
+
+This approach ensures tests are reliable and don't require external services to be running.
 
 ## GitHub SSH Authentication
 
-The system uses SSH for secure authentication with GitHub:
+This application uses SSH for secure GitHub authentication instead of personal access tokens. Benefits include:
 
-1. **Key-based authentication**: Uses SSH keys instead of passwords or tokens
-2. **No passwords stored**: SSH keys remain on your system and are never transmitted
-3. **Git operations**: All Git operations (clone, push, pull) use SSH
-4. **GitHub CLI support**: For operations not supported by Git directly
+- **Enhanced Security**: SSH keys are more secure than passwords or tokens
+- **No Token Expiration**: SSH keys don't expire like personal access tokens
+- **Simplified Workflow**: Once set up, no need to manage or rotate tokens
+- **Standard Protocol**: Uses the same authentication method as Git command-line tools
 
-## Future Enhancements
+SSH key authentication is handled through the underlying Git commands, providing a seamless experience without storing credentials in the application.
 
-1. Add support for more file types and formats
-2. Implement collaborative features (multiple users on one project)
-3. Add advanced visualization for scientific data
-4. Implement automated backups
-5. Add support for external storage providers
-6. Enhance security with two-factor authentication
+## Directory Structure
+
+```
+electronic-lab-notebook/
+├── app/                      # Main application package
+│   ├── static/               # Static assets (CSS, JavaScript)
+│   ├── templates/            # HTML templates
+│   ├── __init__.py           # Application factory
+│   ├── models.py             # Database models
+│   ├── routes.py             # API endpoints
+│   ├── github_integration.py # GitHub SSH integration
+│   ├── neo4j_integration.py  # Neo4j database integration
+│   ├── ollama_integration.py # Ollama AI integration
+│   └── latex_export.py       # PDF export functionality
+├── scripts/                  # Utility scripts
+│   └── setup_github_ssh.py   # GitHub SSH setup script
+├── tests/                    # Test suite
+│   ├── test_database.py      # Database model tests
+│   ├── test_github.py        # GitHub integration tests
+│   ├── test_routes.py        # API endpoint tests
+│   └── test_integration.py   # Cross-component integration tests
+├── config.py                 # Application configuration
+├── requirements.txt          # Python dependencies
+└── run.py                    # Application entry point
+```
+
+## Configuration
+
+### SSH Key Setup
+
+For GitHub integration to work properly, you need to:
+
+1. Have SSH keys generated on your system
+2. Add your public key to your GitHub account
+3. Ensure the SSH keys are specified in the `.env` file
+
+If you already have SSH keys set up for GitHub, you can use those by specifying their path in the `.env` file.
+
+### Neo4j Database
+
+The application uses Neo4j to store relationships between projects, files, and keywords. You need a running Neo4j instance with the following configuration:
+
+- **URI**: `bolt://localhost:7687` (default)
+- **Username**: `neo4j` (default)
+- **Password**: Specified in `.env` file
+
+### Ollama Integration
+
+For AI features like semantic search and image enhancement, you need:
+
+1. Ollama installed and running
+2. The mistral-small3.1 model loaded
+3. Ollama API available at `http://localhost:11434/api/generate` (default)
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.

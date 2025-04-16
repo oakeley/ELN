@@ -1,0 +1,200 @@
+/**
+ * Electronic Laboratory Notebook - Main Stylesheet
+ * Custom styles in addition to Bootstrap
+ */
+
+/* Global Styles */
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    color: #333;
+    background-color: #f8f9fa;
+}
+
+.navbar-brand {
+    font-weight: 600;
+}
+
+/* Project Cards */
+.card {
+    transition: transform 0.2s, box-shadow 0.2s;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 15px rgba(0, 0, 0, 0.1);
+}
+
+.card-title {
+    color: #2c3e50;
+    font-weight: 600;
+}
+
+/* File List */
+.list-group-item {
+    transition: background-color 0.2s;
+}
+
+.list-group-item:hover {
+    background-color: #f1f8ff;
+}
+
+/* Code/Text Display */
+pre {
+    background-color: #f7f7f7;
+    border-radius: 4px;
+    padding: 15px;
+    border: 1px solid #e3e3e3;
+    font-family: 'Courier New', Courier, monospace;
+    white-space: pre-wrap;
+}
+
+/* Image Files */
+#image-file-view img {
+    max-width: 100%;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+/* Form Styling */
+form label {
+    font-weight: 500;
+    color: #495057;
+}
+
+.form-control:focus {
+    border-color: #4CAF50;
+    box-shadow: 0 0 0 0.25rem rgba(76, 175, 80, 0.25);
+}
+
+textarea {
+    min-height: 100px;
+}
+
+/* Modal Customization */
+.modal-header {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #eaeaea;
+}
+
+.modal-footer {
+    background-color: #f8f9fa;
+    border-top: 1px solid #eaeaea;
+}
+
+/* Enhanced Buttons */
+.btn-primary {
+    background-color: #4CAF50;
+    border-color: #4CAF50;
+}
+
+.btn-primary:hover, .btn-primary:focus {
+    background-color: #43a047;
+    border-color: #43a047;
+}
+
+.btn-outline-primary {
+    color: #4CAF50;
+    border-color: #4CAF50;
+}
+
+.btn-outline-primary:hover, .btn-outline-primary:focus {
+    background-color: #4CAF50;
+    border-color: #4CAF50;
+}
+
+/* Search Section */
+#search-section .form-control {
+    border-radius: 20px 0 0 20px;
+}
+
+#search-section .btn {
+    border-radius: 0 20px 20px 0;
+}
+
+/* Footer */
+footer {
+    color: #6c757d;
+    font-size: 0.9rem;
+}
+
+/* File Versions */
+#file-versions .list-group-item {
+    padding: 0.5rem 1rem;
+}
+
+/* GitHub Icons */
+.fa-github {
+    margin-right: 5px;
+}
+
+/* Responsive Adjustments */
+@media (max-width: 768px) {
+    .card {
+        margin-bottom: 1rem;
+    }
+    
+    .btn-sm-block {
+        display: block;
+        width: 100%;
+        margin-bottom: 0.5rem;
+    }
+}
+
+/* Loading Spinner */
+.spinner-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100px;
+}
+
+.spinner-border {
+    width: 3rem;
+    height: 3rem;
+    color: #4CAF50;
+}
+
+/* Tabs Customization */
+.nav-tabs .nav-link.active {
+    color: #4CAF50;
+    border-color: #dee2e6 #dee2e6 #fff;
+}
+
+.nav-tabs .nav-link:not(.active):hover {
+    border-color: #e9ecef #e9ecef #dee2e6;
+}
+
+/* Project Actions Dropdown */
+.dropdown-item:active {
+    background-color: #4CAF50;
+}
+
+/* Test Results Banner (for test.js) */
+.test-results {
+    z-index: 1050;
+    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+    font-size: 0.9rem;
+}
+
+/* Enhance Image Options */
+#enhance-stable-diffusion, #enhance-ollama {
+    padding: 15px;
+    text-align: left;
+}
+
+#enhance-stable-diffusion:hover, #enhance-ollama:hover {
+    background-color: #f8f9fa;
+}
+
+/* Search Results Styling */
+#search-results-list .badge {
+    font-size: 0.8rem;
+}
+
+#search-results-list .list-group-item {
+    margin-bottom: 10px;
+    border-radius: 4px;
+}
