@@ -490,13 +490,30 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         
         async handlePublishToGithub() {
+            // First verify SSH authentication
+            const sshCheck = await api.verifyGithubSSH();
+            
+            if (!sshCheck.success) {
+                const errorMessage = 'GitHub SSH authentication is not properly configured.\n\n' +
+                                    'Please run the setup script:\n' +
+                                    'python scripts/setup_github_ssh.py\n\n' +
+                                    'Error: ' + (sshCheck.error || 'Unknown SSH error');
+                alert(errorMessage);
+                return;
+            }
+            
             const result = await api.publishToGithub(state.currentProject.id);
             
             if (result.success) {
                 alert(`Project published to GitHub: ${result.github.html_url}`);
                 loadProject(state.currentProject.id);
+            } else if (result.ssh_error) {
+                const errorMessage = 'GitHub SSH authentication failed.\n\n' +
+                                    'Please verify your SSH keys are set up correctly and added to GitHub.\n' +
+                                    'Error: ' + (result.error || 'Unknown SSH error');
+                alert(errorMessage);
             } else {
-                alert('Failed to publish to GitHub. Please check your GitHub token and try again.');
+                alert('Failed to publish to GitHub: ' + (result.message || 'Unknown error'));
             }
         },
         
@@ -886,6 +903,7 @@ document.addEventListener('DOMContentLoaded', () => {
         ui.createProjectButton.addEventListener('click', () => {
             ui.createProjectModal.show();
         });
+        document.getElementById('import-github-button').addEventListener('click', handlers.handleImportFromGithub);
         ui.createProjectForm.addEventListener('submit', handlers.handleCreateProject);
         ui.backToProjects.addEventListener('click', () => {
             ui.projectDetailSection.classList.add('d-none');

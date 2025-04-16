@@ -1,4 +1,64 @@
-from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, send_file, current_app, session
+# GitHub integration routes
+@main_bp.route('/api/github/verify-ssh', methods=['GET'])
+def verify_github_ssh():
+    """Verify that SSH keys are set up correctly for GitHub"""
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'message': 'Not logged in'}), 401
+    
+    # Verify SSH keys
+    github = get_github()
+    result = github.verify_ssh_setup()
+    
+    return jsonify(result)
+
+@main_bp.route('/api/projects/<int:project_id>/github/publish', methods=['POST'])
+def publish_to_github(project_id):
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'message': 'Not logged in'}), 401
+    
+    user_id = session['user_id']
+    project = Project.query.filter_by(id=project_id, user_id=user_id).first()
+    
+    if not project:
+        return jsonify({'success': False, 'message': 'Project not found'}), 404
+    
+    # Check SSH connection first
+    github = get_github()
+    ssh_result = github.verify_ssh_setup()
+    
+    if not ssh_result['success']:
+        return jsonify({
+            'success': False, 
+            'message': 'GitHub SSH authentication is not set up correctly.',
+            'error': ssh_result.get('error', 'Unknown SSH error'),
+            'ssh_error': True
+        }), 400
+    
+    # Get files
+    files = File.query.filter_by(project_id=project.id).all()
+    
+    # Publish to GitHub
+    result = github.publish_project_to_github(project, files)
+    
+    if not result['success']:
+        return jsonify({
+            'success': False, 
+            'message': result.get('error', 'Failed to publish to GitHub')
+        }), 500
+    
+    # Update project with GitHub repo info
+    project.github_repo = result['full_name']
+    db.session.commit()
+    
+    return jsonify({
+        'success': True,
+        'github': {
+            'repo_name': result['repo_name'],
+            'full_name': result['full_name'],
+            'html_url': result['html_url'],
+            'ssh_url': result.get('ssh_url', '')
+        }
+    })from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, send_file, current_app, session
 from app.models import User, Project, File, FileVersion
 from app import db
 from app.utils import hash_password, verify_password, save_file
@@ -735,14 +795,25 @@ def import_from_github():
     
     user_id = session['user_id']
     data = request.get_json()
-    repo_name = data.get('repo_name')
+    repo_url = data.get('repo_url')
     
-    if not repo_name:
-        return jsonify({'success': False, 'message': 'Repository name is required'}), 400
+    if not repo_url:
+        return jsonify({'success': False, 'message': 'Repository URL or name is required'}), 400
+    
+    # Check SSH connection first
+    github = get_github()
+    ssh_result = github.verify_ssh_setup()
+    
+    if not ssh_result['success']:
+        return jsonify({
+            'success': False, 
+            'message': 'GitHub SSH authentication is not set up correctly.',
+            'error': ssh_result.get('error', 'Unknown SSH error'),
+            'ssh_error': True
+        }), 400
     
     # Import from GitHub
-    github = get_github()
-    result = github.import_project_from_github(repo_name, user_id)
+    result = github.import_project_from_github(repo_url, user_id)
     
     if not result['success']:
         return jsonify({'success': False, 'message': result.get('error', 'Failed to import from GitHub')}), 500
@@ -758,7 +829,8 @@ def import_from_github():
             'created_at': project.created_at.isoformat(),
             'updated_at': project.updated_at.isoformat(),
             'github_repo': project.github_repo
-        }
+        },
+        'repo': result.get('repo', {})
     })
 
 # LaTeX export route
