@@ -20,10 +20,11 @@ This implementation provides a fully functional Electronic Laboratory Notebook s
    - Neo4j for graph-based data connections and search
    - Version control for all file changes
 
-4. **GitHub Integration**
-   - Publish projects to GitHub repositories
+4. **GitHub Integration with SSH**
+   - Publish projects to GitHub repositories using SSH authentication
    - Import projects from existing GitHub repositories
    - Synchronize changes between local projects and GitHub
+   - Secure SSH key-based authentication
 
 5. **Ollama AI Integration**
    - Semantic search across projects and files
@@ -96,27 +97,50 @@ electronic-lab-notebook/
    pip install -r requirements.txt
    ```
 
-2. Setup environment variables:
+2. Setup SSH keys for GitHub:
+   - Generate SSH keys if you don't have them:
+     ```
+     ssh-keygen -t ed25519 -C "your_email@example.com"
+     ```
+   - Add the SSH key to your GitHub account:
+     - Copy your public key: `cat ~/.ssh/id_ed25519.pub`
+     - Go to GitHub → Settings → SSH and GPG keys → New SSH key
+     - Paste your key and save
+
+3. Setup environment variables:
    - Create a `.env` file with the following settings:
      ```
      SECRET_KEY=your-secret-key
      NEO4J_URI=bolt://localhost:7687
      NEO4J_USER=neo4j
      NEO4J_PASSWORD=your-password
-     GITHUB_TOKEN=your-github-token
+     GITHUB_USERNAME=your-github-username
+     GITHUB_SSH_KEY_PATH=~/.ssh/id_ed25519
+     GITHUB_SSH_PUB_KEY_PATH=~/.ssh/id_ed25519.pub
+     GIT_USER_NAME="Your Name"
+     GIT_USER_EMAIL="your_email@example.com"
      OLLAMA_API_URL=http://localhost:11434/api/generate
      ```
 
-3. Initialize the database:
+4. Initialize the database:
    - Make sure Neo4j is running
    - The SQLite database will be created automatically on first run
 
-4. Run the application:
+5. Run the application:
    ```
    python run.py
    ```
 
-5. Access the application at `http://localhost:5000`
+6. Access the application at `http://localhost:5000`
+
+## GitHub SSH Authentication
+
+The system uses SSH for secure authentication with GitHub:
+
+1. **Key-based authentication**: Uses SSH keys instead of passwords or tokens
+2. **No passwords stored**: SSH keys remain on your system and are never transmitted
+3. **Git operations**: All Git operations (clone, push, pull) use SSH
+4. **GitHub CLI support**: For operations not supported by Git directly
 
 ## Future Enhancements
 
