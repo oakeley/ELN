@@ -1,3 +1,32 @@
+from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, send_file, current_app, session
+from app.models import User, Project, File, FileVersion
+from app import db
+from app.utils import hash_password, verify_password, save_file
+from app.neo4j_integration import Neo4jIntegration
+from app.github_integration import GitHubIntegration
+from app.ollama_integration import OllamaIntegration
+from app.latex_export import LatexExport
+import os
+import json
+from datetime import datetime
+import io
+
+# Create blueprint
+main_bp = Blueprint('main', __name__)
+
+# Initialize integrations
+def get_neo4j():
+    return Neo4jIntegration()
+
+def get_github():
+    return GitHubIntegration()
+
+def get_ollama():
+    return OllamaIntegration()
+
+def get_latex():
+    return LatexExport()
+
 # GitHub integration routes
 @main_bp.route('/api/github/verify-ssh', methods=['GET'])
 def verify_github_ssh():
