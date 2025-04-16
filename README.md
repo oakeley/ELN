@@ -25,8 +25,8 @@ A comprehensive web-based laboratory notebook system for research documentation 
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/yourusername/electronic-lab-notebook.git
-   cd electronic-lab-notebook
+   git clone https://github.com/oakeley/ELN.git
+   cd ELN
    ```
 
 2. Install dependencies:
