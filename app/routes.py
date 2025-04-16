@@ -104,19 +104,22 @@ def auth_status():
 def get_projects():
     if 'user_id' not in session:
         return jsonify({'success': False, 'message': 'Not logged in'}), 401
-    
+
     user_id = session['user_id']
     projects = Project.query.filter_by(user_id=user_id).all()
-    
+
     projects_list = []
     for project in projects:
-        projects_list.append({
+        project_data = {
             'id': project.id,
             'name': project.name,
             'description': project.description,
+            'created_at': project.created_at.isoformat(),
+            'updated_at': project.updated_at.isoformat(),
+            'file_count': project.files.count(),
             'files': []
         }
-        
+
         # Add files
         for file in project.files:
             file_data = {
@@ -124,51 +127,13 @@ def get_projects():
                 'filename': file.filename,
                 'file_type': file.file_type
             }
-            
             if file.file_type == 'text':
                 file_data['content'] = file.content
-            
+
             project_data['files'].append(file_data)
-        
-        projects_data.append(project_data)
-    
-    # Use Ollama for semantic search
-    ollama = get_ollama()
-    search_results = ollama.search_projects(query, projects_data)
-    
-    if not search_results['success']:
-        return jsonify({'success': False, 'message': search_results.get('error', 'Search failed')}), 500
-    
-    # Extract Neo4j keywords for additional context
-    try:
-        keywords = query.split()
-        neo4j = get_neo4j()
-        related_files = neo4j.find_related_files(keywords)
-        
-        # Add relevance info from Neo4j
-        for result in search_results['results']:
-            for file_info in related_files:
-                if str(result['project']['id']) == str(file_info['project_id']):
-                    if 'neo4j_relevance' not in result:
-                        result['neo4j_relevance'] = []
-                    result['neo4j_relevance'].append({
-                        'file_id': file_info['file_id'],
-                        'filename': file_info['filename'],
-                        'relevance': file_info['relevance']
-                    })
-    except Exception as e:
-        # Log error but continue
-        print(f"Neo4j search error: {str(e)}")
-    
-    return jsonify({
-        'success': True,
-        'results': search_results['results']
-    }).description,
-            'created_at': project.created_at.isoformat(),
-            'updated_at': project.updated_at.isoformat(),
-            'file_count': project.files.count()
-        })
-    
+
+        projects_list.append(project_data)
+
     return jsonify({'success': True, 'projects': projects_list})
 
 @main_bp.route('/api/projects', methods=['POST'])
@@ -841,20 +806,66 @@ def export_to_pdf(project_id):
 def search():
     if 'user_id' not in session:
         return jsonify({'success': False, 'message': 'Not logged in'}), 401
-    
+
     user_id = session['user_id']
     query = request.args.get('q', '')
-    
+
     if not query:
         return jsonify({'success': False, 'message': 'Query is required'}), 400
-    
+
     # Get projects for this user
     projects = Project.query.filter_by(user_id=user_id).all()
-    
+
     # Prepare data for search
     projects_data = []
     for project in projects:
         project_data = {
             'id': project.id,
             'name': project.name,
-            'description': project
+            'description': project.description,
+            'files': []
+        }
+
+        for file in project.files:
+            file_data = {
+                'id': file.id,
+                'filename': file.filename,
+                'file_type': file.file_type,
+                'content': file.content if file.file_type == 'text' else None
+            }
+            project_data['files'].append(file_data)
+
+        projects_data.append(project_data)
+
+    # Use Ollama for semantic search
+    ollama = get_ollama()
+    search_results = ollama.search_projects(query, projects_data)
+
+    if not search_results['success']:
+        return jsonify({'success': False, 'message': search_results.get('error', 'Search failed')}), 500
+
+    # Enhance with Neo4j data
+    try:
+        keywords = query.split()
+        neo4j = get_neo4j()
+        related_files = neo4j.find_related_files(keywords)
+
+        for result in search_results['results']:
+            for file_info in related_files:
+                if str(result['project']['id']) == str(file_info['project_id']):
+                    if 'neo4j_relevance' not in result:
+                        result['neo4j_relevance'] = []
+                    result['neo4j_relevance'].append({
+                        'file_id': file_info['file_id'],
+                        'filename': file_info['filename'],
+                        'relevance': file_info['relevance']
+                    })
+    except Exception as e:
+        print(f"Neo4j enrichment error: {str(e)}")
+
+    return jsonify({
+        'success': True,
+        'results': search_results['results']
+    })
+
+
