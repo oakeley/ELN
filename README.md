@@ -34,6 +34,13 @@ A comprehensive web-based laboratory notebook system for research documentation 
    pip install -r requirements.txt
    ```
 
+   or...
+
+   ```bash
+   conda env create -f eln.yml
+   conda activate eln
+   ```
+
 3. Set up SSH for GitHub:
    ```bash
    python scripts/setup_github_ssh.py
