@@ -1,0 +1,80 @@
+\documentclass[12pt]{article}
+\usepackage[a4paper, margin=1in]{geometry}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+
+% Define colors
+\definecolor{codebackground}{rgb}{0.95,0.95,0.95}
+\definecolor{codecomment}{rgb}{0.4,0.4,0.4}
+\definecolor{codestring}{rgb}{0.58,0,0.82}
+
+% Configure listings for code
+\lstset{
+  backgroundcolor=\color{codebackground},
+  commentstyle=\color{codecomment},
+  stringstyle=\color{codestring},
+  basicstyle=\ttfamily\small,
+  breakatwhitespace=false,
+  breaklines=true,
+  captionpos=b,
+  keepspaces=true,
+  showspaces=false,
+  showstringspaces=false,
+  showtabs=false,
+  tabsize=2
+}
+
+% Setup page headers
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{Electronic Laboratory Notebook}
+\fancyhead[R]{{{ project.title }}}
+\fancyfoot[C]{\thepage}
+
+% Title format
+\titleformat{\section}
+  {\normalfont\Large\bfseries}{\thesection}{1em}{}
+\titleformat{\subsection}
+  {\normalfont\large\bfseries}{\thesubsection}{1em}{}
+
+\begin{document}
+
+\begin{titlepage}
+    \centering
+    {\LARGE\bfseries Electronic Laboratory Notebook\par}
+    \vspace{2cm}
+    {\Huge\bfseries {{ project.title }}\par}
+    \vspace{1.5cm}
+    {\large\textit{{{ project.abstract }}\par}}
+    \vfill
+    {\large \today\par}
+\end{titlepage}
+
+\tableofcontents
+\newpage
+
+% Sections
+{% for section in project.sections %}
+\section{ {{- section.title -}} }
+{{ section.content }}
+\newpage
+{% endfor %}
+
+% Images
+{% if project.images %}
+\section{Figures}
+{% for image in project.images %}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{ {{- image.path -}} }
+    \caption{ {{- image.caption -}} }
+\end{figure}
+{% endfor %}
+{% endif %}
+
+\end{document}

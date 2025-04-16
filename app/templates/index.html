@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Electronic Laboratory Notebook</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <!-- Include modern CSS framework -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="#">Electronic Laboratory Notebook</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" id="nav-projects">Projects</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" id="nav-search">Search</a>
+                    </li>
+                </ul>
+                <div class="d-flex" id="auth-buttons">
+                    <button class="btn btn-outline-light me-2" id="login-button">Login</button>
+                    <button class="btn btn-light" id="register-button">Register</button>
+                </div>
+                <div class="d-flex d-none" id="user-info">
+                    <span class="navbar-text me-3">
+                        Welcome, <span id="username-display"></span>
+                    </span>
+                    <button class="btn btn-outline-light" id="logout-button">Logout</button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main content -->
+    <div class="container mt-4">
+        <!-- Login/Register section -->
+        <section id="auth-section" class="mb-4">
+            <div class="row justify-content-center">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <ul class="nav nav-tabs card-header-tabs" id="auth-tabs">
+                                <li class="nav-item">
+                                    <a class="nav-link active" id="login-tab" href="#">Login</a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link" id="register-tab" href="#">Register</a>
+                                </li>
+                            </ul>
+                        </div>
+                        <div class="card-body">
+                            <form id="login-form">
+                                <div class="mb-3">
+                                    <label for="login-username" class="form-label">Username</label>
+                                    <input type="text" class="form-control" id="login-username" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="login-password" class="form-label">Password</label>
+                                    <input type="password" class="form-control" id="login-password" required>
+                                </div>
+                                <button type="submit" class="btn btn-primary">Login</button>
+                                <div class="alert alert-danger mt-3 d-none" id="login-error"></div>
+                            </form>
+                            <form id="register-form" class="d-none">
+                                <div class="mb-3">
+                                    <label for="register-username" class="form-label">Username</label>
+                                    <input type="text" class="form-control" id="register-username" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="register-email" class="form-label">Email</label>
+                                    <input type="email" class="form-control" id="register-email">
+                                </div>
+                                <div class="mb-3">
+                                    <label for="register-password" class="form-label">Password</label>
+                                    <input type="password" class="form-control" id="register-password" required>
+                                </div>
+                                <button type="submit" class="btn btn-primary">Register</button>
+                                <div class="alert alert-danger mt-3 d-none" id="register-error"></div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Projects section -->
+        <section id="projects-section" class="d-none">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2>My Projects</h2>
+                <button class="btn btn-primary" id="create-project-button">
+                    <i class="fas fa-plus"></i> New Project
+                </button>
+            </div>
+            <div class="row" id="projects-container">
+                <!-- Projects will be loaded here -->
+            </div>
+            
+            <!-- Create Project Modal -->
+            <div class="modal fade" id="create-project-modal" tabindex="-1">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Create New Project</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <form id="create-project-form">
+                                <div class="mb-3">
+                                    <label for="project-name" class="form-label">Project Name</label>
+                                    <input type="text" class="form-control" id="project-name" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="project-description" class="form-label">Description</label>
+                                    <textarea class="form-control" id="project-description" rows="3"></textarea>
+                                </div>
+                                <button type="submit" class="btn btn-primary">Create</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Project detail section -->
+        <section id="project-detail-section" class="d-none">
+            <div class="mb-4">
+                <button class="btn btn-outline-secondary" id="back-to-projects">
+                    <i class="fas fa-arrow-left"></i> Back to Projects
+                </button>
+            </div>
+            <div class="card mb-4">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <h2 id="project-detail-name"></h2>
+                            <p id="project-detail-description" class="text-muted"></p>
+                        </div>
+                        <div class="dropdown">
+                            <button class="btn btn-outline-primary dropdown-toggle" type="button" id="project-actions" data-bs-toggle="dropdown">
+                                Actions
+                            </button>
+                            <ul class="dropdown-menu">
+                                <li><a class="dropdown-item" href="#" id="edit-project">Edit Project</a></li>
+                                <li><a class="dropdown-item" href="#" id="publish-to-github">Publish to GitHub</a></li>
+                                <li><a class="dropdown-item" href="#" id="export-to-pdf">Export to PDF</a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item text-danger" href="#" id="delete-project">Delete Project</a></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h4 class="mb-0">Files</h4>
+                    <div>
+                        <button class="btn btn-outline-primary me-2" id="create-text-file">
+                            <i class="fas fa-file-alt"></i> New Text File
+                        </button>
+                        <button class="btn btn-outline-primary" id="upload-file">
+                            <i class="fas fa-upload"></i> Upload File
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="list-group" id="file-list">
+                        <!-- Files will be loaded here -->
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Edit Project Modal -->
+            <div class="modal fade" id="edit-project-modal" tabindex="-1">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Edit Project</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <form id="edit-project-form">
+                                <div class="mb-3">
+                                    <label for="edit-project-name" class="form-label">Project Name</label>
+                                    <input type="text" class="form-control" id="edit-project-name" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="edit-project-description" class="form-label">Description</label>
+                                    <textarea class="form-control" id="edit-project-description" rows="3"></textarea>
+                                </div>
+                                <button type="submit" class="btn btn-primary">Save Changes</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- New Text File Modal -->
+            <div class="modal fade" id="create-text-file-modal" tabindex="-1">
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">New Text File</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <form id="create-text-file-form">
+                                <div class="mb-3">
+                                    <label for="text-file-name" class="form-label">Filename</label>
+                                    <input type="text" class="form-control" id="text-file-name" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="text-file-content" class="form-label">Content</label>
+                                    <textarea class="form-control" id="text-file-content" rows="10"></textarea>
+                                </div>
+                                <button type="submit" class="btn btn-primary">Create</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Upload File Modal -->
+            <div class="modal fade" id="upload-file-modal" tabindex="-1">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Upload File</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <form id="upload-file-form">
+                                <div class="mb-3">
+                                    <label for="file-upload" class="form-label">Select File</label>
+                                    <input type="file" class="form-control" id="file-upload" required>
+                                </div>
+                                <button type="submit" class="btn btn-primary">Upload</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        <!-- File detail section -->
+        <section id="file-detail-section" class="d-none">
+            <div class="mb-4">
+                <button class="btn btn-outline-secondary" id="back-to-project">
+                    <i class="fas fa-arrow-left"></i> Back to Project
+                </button>
+            </div>
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h3 id="file-detail-name"></h3>
+                    <div class="dropdown">
+                        <button class="btn btn-outline-primary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                            Actions
+                        </button>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="#" id="edit-file">Edit File</a></li>
+                            <li><a class="dropdown-item" href="#" id="enhance-image">Enhance Image</a></li>
+                            <li><a class="dropdown-item" href="#" id="download-file">Download</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item text-danger" href="#" id="delete-file">Delete File</a></li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div id="text-file-view">
+                        <pre class="bg-light p-3 rounded" id="file-content"></pre>
+                    </div>
+                    <div id="image-file-view" class="text-center">
+                        <img id="file-image" class="img-fluid rounded" alt="File preview">
+                    </div>
+                </div>
+                <div class="card-footer">
+                    <small class="text-muted">Last updated: <span id="file-last-updated"></span></small>
+                </div>
+            </div>
+            
+            <!-- File Versions -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h4>Versions</h4>
+                </div>
+                <div class="card-body">
+                    <ul class="list-group" id="file-versions">
+                        <!-- Versions will be loaded here -->
+                    </ul>
+                </div>
+            </div>
+            
+            <!-- Edit File Modal -->
+            <div class="modal fade" id="edit-file-modal" tabindex="-1">
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Edit File</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <form id="edit-file-form">
+                                <div class="mb-3">
+                                    <label for="edit-file-content" class="form-label">Content</label>
+                                    <textarea class="form-control" id="edit-file-content" rows="15"></textarea>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="edit-file-commit" class="form-label">Commit Message</label>
+                                    <input type="text" class="form-control" id="edit-file-commit" placeholder="Describe your changes" required>
+                                </div>
+                                <button type="submit" class="btn btn-primary">Save Changes</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Enhance Image Modal -->
+            <div class="modal fade" id="enhance-image-modal" tabindex="-1">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Enhance Image</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <p>Choose an enhancement method:</p>
+                            <div class="d-grid gap-3">
+                                <button class="btn btn-outline-primary" id="enhance-stable-diffusion">
+                                    <i class="fas fa-magic"></i> Stable Diffusion
+                                </button>
+                                <button class="btn btn-outline-primary" id="enhance-ollama">
+                                    <i class="fas fa-pencil-alt"></i> Vector Line Art (Ollama)
+                                </button>
+                            </div>
+                            <div class="alert alert-info mt-3">
+                                <small>Enhancement may take a moment. The new image will appear in your project files when complete.</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Search section -->
+        <section id="search-section" class="d-none">
+            <h2 class="mb-4">Search Projects</h2>
+            <div class="row mb-4">
+                <div class="col">
+                    <div class="input-group">
+                        <input type="text" class="form-control" id="search-input" placeholder="Search for projects, files, or concepts...">
+                        <button class="btn btn-primary" id="search-button">
+                            <i class="fas fa-search"></i> Search
+                        </button>
+                    </div>
+                    <div class="form-text text-muted">
+                        Search uses the Ollama model to find semantic matches in your projects and files.
+                    </div>
+                </div>
+            </div>
+            
+            <div id="search-results" class="d-none">
+                <h3>Results</h3>
+                <div class="list-group" id="search-results-list">
+                    <!-- Search results will be displayed here -->
+                </div>
+            </div>
+            
+            <div class="alert alert-info d-none" id="no-results-message">
+                No results found. Try different search terms.
+            </div>
+        </section>
+    </div>
+
+    <!-- Footer -->
+    <footer class="bg-light py-3 mt-5">
+        <div class="container text-center">
+            <p class="mb-0">Electronic Laboratory Notebook &copy; 2025</p>
+        </div>
+    </footer>
+
+    <!-- JavaScript Dependencies -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>
