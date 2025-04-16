@@ -27,95 +27,6 @@ def get_ollama():
 def get_latex():
     return LatexExport()
 
-# GitHub integration routes
-@main_bp.route('/api/github/verify-ssh', methods=['GET'])
-def verify_github_ssh():
-    """Verify that SSH keys are set up correctly for GitHub"""
-    if 'user_id' not in session:
-        return jsonify({'success': False, 'message': 'Not logged in'}), 401
-    
-    # Verify SSH keys
-    github = get_github()
-    result = github.verify_ssh_setup()
-    
-    return jsonify(result)
-
-@main_bp.route('/api/projects/<int:project_id>/github/publish', methods=['POST'])
-def publish_to_github(project_id):
-    if 'user_id' not in session:
-        return jsonify({'success': False, 'message': 'Not logged in'}), 401
-    
-    user_id = session['user_id']
-    project = Project.query.filter_by(id=project_id, user_id=user_id).first()
-    
-    if not project:
-        return jsonify({'success': False, 'message': 'Project not found'}), 404
-    
-    # Check SSH connection first
-    github = get_github()
-    ssh_result = github.verify_ssh_setup()
-    
-    if not ssh_result['success']:
-        return jsonify({
-            'success': False, 
-            'message': 'GitHub SSH authentication is not set up correctly.',
-            'error': ssh_result.get('error', 'Unknown SSH error'),
-            'ssh_error': True
-        }), 400
-    
-    # Get files
-    files = File.query.filter_by(project_id=project.id).all()
-    
-    # Publish to GitHub
-    result = github.publish_project_to_github(project, files)
-    
-    if not result['success']:
-        return jsonify({
-            'success': False, 
-            'message': result.get('error', 'Failed to publish to GitHub')
-        }), 500
-    
-    # Update project with GitHub repo info
-    project.github_repo = result['full_name']
-    db.session.commit()
-    
-    return jsonify({
-        'success': True,
-        'github': {
-            'repo_name': result['repo_name'],
-            'full_name': result['full_name'],
-            'html_url': result['html_url'],
-            'ssh_url': result.get('ssh_url', '')
-        }
-    })from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, send_file, current_app, session
-from app.models import User, Project, File, FileVersion
-from app import db
-from app.utils import hash_password, verify_password, save_file
-from app.neo4j_integration import Neo4jIntegration
-from app.github_integration import GitHubIntegration
-from app.ollama_integration import OllamaIntegration
-from app.latex_export import LatexExport
-import os
-import json
-from datetime import datetime
-import io
-
-# Create blueprint
-main_bp = Blueprint('main', __name__)
-
-# Initialize integrations
-def get_neo4j():
-    return Neo4jIntegration()
-
-def get_github():
-    return GitHubIntegration()
-
-def get_ollama():
-    return OllamaIntegration()
-
-def get_latex():
-    return LatexExport()
-
 # Route for home page
 @main_bp.route('/')
 def index():
@@ -203,6 +114,56 @@ def get_projects():
             'id': project.id,
             'name': project.name,
             'description': project.description,
+            'files': []
+        }
+        
+        # Add files
+        for file in project.files:
+            file_data = {
+                'id': file.id,
+                'filename': file.filename,
+                'file_type': file.file_type
+            }
+            
+            if file.file_type == 'text':
+                file_data['content'] = file.content
+            
+            project_data['files'].append(file_data)
+        
+        projects_data.append(project_data)
+    
+    # Use Ollama for semantic search
+    ollama = get_ollama()
+    search_results = ollama.search_projects(query, projects_data)
+    
+    if not search_results['success']:
+        return jsonify({'success': False, 'message': search_results.get('error', 'Search failed')}), 500
+    
+    # Extract Neo4j keywords for additional context
+    try:
+        keywords = query.split()
+        neo4j = get_neo4j()
+        related_files = neo4j.find_related_files(keywords)
+        
+        # Add relevance info from Neo4j
+        for result in search_results['results']:
+            for file_info in related_files:
+                if str(result['project']['id']) == str(file_info['project_id']):
+                    if 'neo4j_relevance' not in result:
+                        result['neo4j_relevance'] = []
+                    result['neo4j_relevance'].append({
+                        'file_id': file_info['file_id'],
+                        'filename': file_info['filename'],
+                        'relevance': file_info['relevance']
+                    })
+    except Exception as e:
+        # Log error but continue
+        print(f"Neo4j search error: {str(e)}")
+    
+    return jsonify({
+        'success': True,
+        'results': search_results['results']
+    }).description,
             'created_at': project.created_at.isoformat(),
             'updated_at': project.updated_at.isoformat(),
             'file_count': project.files.count()
@@ -783,39 +744,17 @@ def enhance_image(file_id):
     })
 
 # GitHub integration routes
-@main_bp.route('/api/projects/<int:project_id>/github/publish', methods=['POST'])
-def publish_to_github(project_id):
+@main_bp.route('/api/github/verify-ssh', methods=['GET'])
+def verify_github_ssh():
+    """Verify that SSH keys are set up correctly for GitHub"""
     if 'user_id' not in session:
         return jsonify({'success': False, 'message': 'Not logged in'}), 401
     
-    user_id = session['user_id']
-    project = Project.query.filter_by(id=project_id, user_id=user_id).first()
-    
-    if not project:
-        return jsonify({'success': False, 'message': 'Project not found'}), 404
-    
-    # Get files
-    files = File.query.filter_by(project_id=project.id).all()
-    
-    # Publish to GitHub
+    # Verify SSH keys
     github = get_github()
-    result = github.publish_project_to_github(project, files)
+    result = github.verify_ssh_setup()
     
-    if not result['success']:
-        return jsonify({'success': False, 'message': result.get('error', 'Failed to publish to GitHub')}), 500
-    
-    # Update project with GitHub repo info
-    project.github_repo = result['full_name']
-    db.session.commit()
-    
-    return jsonify({
-        'success': True,
-        'github': {
-            'repo_name': result['repo_name'],
-            'full_name': result['full_name'],
-            'html_url': result['html_url']
-        }
-    })
+    return jsonify(result)
 
 @main_bp.route('/api/github/import', methods=['POST'])
 def import_from_github():
@@ -918,54 +857,4 @@ def search():
         project_data = {
             'id': project.id,
             'name': project.name,
-            'description': project.description,
-            'files': []
-        }
-        
-        # Add files
-        for file in project.files:
-            file_data = {
-                'id': file.id,
-                'filename': file.filename,
-                'file_type': file.file_type
-            }
-            
-            if file.file_type == 'text':
-                file_data['content'] = file.content
-            
-            project_data['files'].append(file_data)
-        
-        projects_data.append(project_data)
-    
-    # Use Ollama for semantic search
-    ollama = get_ollama()
-    search_results = ollama.search_projects(query, projects_data)
-    
-    if not search_results['success']:
-        return jsonify({'success': False, 'message': search_results.get('error', 'Search failed')}), 500
-    
-    # Extract Neo4j keywords for additional context
-    try:
-        keywords = query.split()
-        neo4j = get_neo4j()
-        related_files = neo4j.find_related_files(keywords)
-        
-        # Add relevance info from Neo4j
-        for result in search_results['results']:
-            for file_info in related_files:
-                if str(result['project']['id']) == str(file_info['project_id']):
-                    if 'neo4j_relevance' not in result:
-                        result['neo4j_relevance'] = []
-                    result['neo4j_relevance'].append({
-                        'file_id': file_info['file_id'],
-                        'filename': file_info['filename'],
-                        'relevance': file_info['relevance']
-                    })
-    except Exception as e:
-        # Log error but continue
-        print(f"Neo4j search error: {str(e)}")
-    
-    return jsonify({
-        'success': True,
-        'results': search_results['results']
-    })
+            'description': project
