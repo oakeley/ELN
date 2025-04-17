@@ -145,16 +145,16 @@
             </div>
             <div class="card mb-4">
                 <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-start">
+                    <div class="d-flex justify-content-between align-items-start position-relative">
                         <div>
                             <h2 id="project-detail-name"></h2>
                             <p id="project-detail-description" class="text-muted"></p>
                         </div>
-                        <div class="dropdown">
-                            <button class="btn btn-outline-primary dropdown-toggle" type="button" id="project-actions" data-bs-toggle="dropdown">
+                        <div class="dropdown actions-dropdown">
+                            <button class="btn btn-outline-primary dropdown-toggle" type="button" id="project-actions" data-bs-toggle="dropdown" aria-expanded="false">
                                 Actions
                             </button>
-                            <ul class="dropdown-menu">
+                            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="project-actions">
                                 <li><a class="dropdown-item" href="#" id="edit-project">Edit Project</a></li>
                                 <li><a class="dropdown-item" href="#" id="publish-to-github">Publish to GitHub</a></li>
                                 <li><a class="dropdown-item" href="#" id="export-to-pdf">Export to PDF</a></li>
@@ -267,11 +267,11 @@
             <div class="card mb-4">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h3 id="file-detail-name"></h3>
-                    <div class="dropdown">
-                        <button class="btn btn-outline-primary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                    <div class="dropdown actions-dropdown">
+                        <button class="btn btn-outline-primary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
                             Actions
                         </button>
-                        <ul class="dropdown-menu">
+                        <ul class="dropdown-menu dropdown-menu-end">
                             <li><a class="dropdown-item" href="#" id="edit-file">Edit File</a></li>
                             <li><a class="dropdown-item" href="#" id="enhance-image">Enhance Image</a></li>
                             <li><a class="dropdown-item" href="#" id="download-file">Download</a></li>

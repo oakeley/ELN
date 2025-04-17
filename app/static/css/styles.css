@@ -18,7 +18,9 @@ body {
 .card {
     transition: transform 0.2s, box-shadow 0.2s;
     border-radius: 8px;
-    overflow: hidden;
+    overflow: visible; /* Changed from 'hidden' to 'visible' to show dropdown */
+    margin-bottom: 30px; /* Added more bottom margin */
+    position: relative; /* Ensure relative positioning */
 }
 
 .card:hover {
@@ -172,6 +174,24 @@ footer {
     background-color: #4CAF50;
 }
 
+/* Fix for dropdown menus */
+.dropdown-menu {
+    z-index: 1030; /* Higher z-index to ensure visibility */
+    position: absolute;
+    right: 0;
+    left: auto;
+}
+
+/* Actions Dropdown specific */
+.actions-dropdown {
+    position: relative;
+}
+
+.actions-dropdown .dropdown-menu {
+    max-height: none;
+    overflow: visible;
+}
+
 /* Test Results Banner (for test.js) */
 .test-results {
     z-index: 1050;
@@ -197,4 +217,15 @@ footer {
 #search-results-list .list-group-item {
     margin-bottom: 10px;
     border-radius: 4px;
+}
+
+/* Project detail section fixes */
+#project-detail-section .card {
+    overflow: visible;
+    padding-bottom: 20px; /* Extra padding at bottom */
+}
+
+#project-detail-section .dropdown {
+    position: relative;
+    z-index: 1050; /* Higher than other elements */
 }
