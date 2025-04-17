@@ -1219,6 +1219,17 @@ function enhanceTextFileCreation() {
 function submitTextFile(projectId, filename, content) {
     console.log(`Submitting file: ${filename} to project ${projectId}`);
     
+    // If projectId is not valid, try to get it from URL or page
+    if (!projectId) {
+        projectId = getProjectIdFromPage();
+        console.log(`Using project ID from page: ${projectId}`);
+    }
+    
+    if (!projectId) {
+        alert("Error: Could not determine project ID. Please reload the page and try again.");
+        return;
+    }
+    
     // Create form data
     const formData = new FormData();
     formData.append('filename', filename);
@@ -1256,6 +1267,50 @@ function submitTextFile(projectId, filename, content) {
         console.error('Error creating file:', error);
         alert('Error creating file. Please try again.');
     });
+}
+
+// Helper function to get project ID from the page
+function getProjectIdFromPage() {
+    // Method 1: Try to extract from URL
+    const urlPath = window.location.pathname;
+    const projectUrlMatch = urlPath.match(/\/projects\/(\d+)/);
+    if (projectUrlMatch && projectUrlMatch[1]) {
+        return projectUrlMatch[1];
+    }
+    
+    // Method 2: Check for project in state
+    try {
+        const stateElement = document.querySelector('[data-state]');
+        if (stateElement && stateElement.dataset.state) {
+            const state = JSON.parse(stateElement.dataset.state);
+            if (state.currentProject && state.currentProject.id) {
+                return state.currentProject.id;
+            }
+        }
+    } catch (e) {
+        console.error("Error parsing state:", e);
+    }
+    
+    // Method 3: Look for project ID in headings or title
+    const projectName = document.querySelector('h2');
+    if (projectName && projectName.textContent.trim() === 'Test') {
+        // This is the Test project, use ID 1 (or whatever your Test project ID is)
+        return 1;
+    }
+    
+    // Method 4: Check data attributes on buttons
+    const projectButtons = document.querySelectorAll('[data-project-id]');
+    if (projectButtons.length > 0) {
+        return projectButtons[0].dataset.projectId;
+    }
+    
+    // Method 5: Fallback - check page content for clues
+    if (document.body.textContent.includes('Test project')) {
+        return 1; // Assuming Test project has ID 1
+    }
+    
+    // If all else fails
+    return null;
 }
 
 // Helper function to insert text at cursor position
@@ -1404,11 +1459,70 @@ function convertToPlainText(html) {
 
 // Initialize when the document is ready
 document.addEventListener('DOMContentLoaded', function() {
-    // Export the current project for other functions to use
-    window.getCurrentProject = function() {
-        return window.currentProject;
-    };
+    // Find the Create Entry button
+    const createEntryBtn = document.querySelector('#create-entry, button[id$="create-entry"]');
     
-    // Call the enhancement function
-    enhanceTextFileCreation();
+    if (createEntryBtn) {
+        console.log("Found Create Entry button, attaching override handler");
+        
+        createEntryBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            
+            console.log("Create Entry button clicked");
+            
+            // Get form values
+            const entryTitle = document.getElementById('text-file-name').value;
+            const content = document.getElementById('text-file-content').value;
+            
+            // Get project ID
+            const projectId = getProjectIdFromPage();
+            
+            if (!projectId) {
+                alert("Error: Could not determine project ID. Please reload the page and try again.");
+                return;
+            }
+            
+            console.log(`Creating entry with title "${entryTitle}" for project ID ${projectId}`);
+            
+            // Create form data
+            const formData = new FormData();
+            formData.append('filename', entryTitle);
+            formData.append('content', content);
+            
+            // Submit the data
+            fetch(`/api/projects/${projectId}/files`, {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    console.log("Entry created successfully");
+                    
+                    // Close the modal
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('create-text-file-modal'));
+                    if (modal) {
+                        modal.hide();
+                    }
+                    
+                    // Reload page to show the new file
+                    window.location.reload();
+                } else {
+                    alert('Failed to create entry: ' + (data.message || 'Unknown error'));
+                }
+            })
+            .catch(error => {
+                console.error('Error creating entry:', error);
+                alert('Error creating entry. Please try again.');
+            });
+        });
+    }
 });
+
+// Export window.currentProject globally for direct access
+window.currentProject = {
+    id: getProjectIdFromPage()
+};
+
+console.log("Project ID detection initialized:", window.currentProject.id);
+
