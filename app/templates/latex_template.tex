@@ -33,7 +33,9 @@
 \pagestyle{fancy}
 \fancyhf{}
 \fancyhead[L]{Electronic Laboratory Notebook}
-\fancyhead[R]{{{ project.title }}}
+\fancyhead[R]{% 
+  {{ project.title }}%
+}
 \fancyfoot[C]{\thepage}
 
 % Title format
@@ -50,7 +52,7 @@
     \vspace{2cm}
     {\Huge\bfseries {{ project.title }}\par}
     \vspace{1.5cm}
-    {\large\textit{{{ project.abstract }}\par}}
+    {\large\textit{{{ project.abstract }}}\par}
     \vfill
     {\large \today\par}
 \end{titlepage}
@@ -60,7 +62,7 @@
 
 % Sections
 {% for section in project.sections %}
-\section{ {{- section.title -}} }
+\section{{{ section.title }}}
 {{ section.content }}
 \newpage
 {% endfor %}
@@ -71,8 +73,10 @@
 {% for image in project.images %}
 \begin{figure}[H]
     \centering
-    \includegraphics[width=0.8\textwidth]{ {{- image.path -}} }
-    \caption{ {{- image.caption -}} }
+    \includegraphics[width=0.8\textwidth]{%
+        "{{ image.path }}"
+    }
+    \caption{{{ image.caption }}}
 \end{figure}
 {% endfor %}
 {% endif %}
