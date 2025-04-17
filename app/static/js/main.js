@@ -1,6 +1,8 @@
 // Main JavaScript for Electronic Laboratory Notebook
 
 document.addEventListener('DOMContentLoaded', () => {
+    console.log('Electronic Laboratory Notebook initialized');
+    
     // Global state
     const state = {
         currentUser: null,
@@ -118,6 +120,7 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         
         async register(username, email, password) {
+            console.log('API Register called with:', { username, email, password });
             try {
                 const response = await fetch('/api/auth/register', {
                     method: 'POST',
@@ -127,7 +130,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     body: JSON.stringify({ username, email, password })
                 });
                 
-                return await response.json();
+                const data = await response.json();
+                console.log('Register response:', data);
+                return data;
             } catch (error) {
                 console.error('Error registering:', error);
                 return { success: false, message: 'Network error' };
@@ -363,6 +368,36 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.error('Error searching:', error);
                 return { success: false, results: [] };
             }
+        },
+
+        // GitHub SSH verification
+        async verifyGithubSSH() {
+            try {
+                const response = await fetch('/api/github/verify-ssh');
+                const data = await response.json();
+                return data;
+            } catch (error) {
+                console.error('Error verifying GitHub SSH:', error);
+                return { success: false, error: 'Network error' };
+            }
+        },
+
+        // GitHub Import
+        async importFromGithub(repoUrl) {
+            try {
+                const response = await fetch('/api/github/import', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ repo_url: repoUrl })
+                });
+                
+                return await response.json();
+            } catch (error) {
+                console.error('Error importing from GitHub:', error);
+                return { success: false, error: 'Network error' };
+            }
         }
     };
 
@@ -399,12 +434,23 @@ document.addEventListener('DOMContentLoaded', () => {
         
         async handleRegister(e) {
             e.preventDefault();
+            console.log("Register form submitted");
             
             const username = document.getElementById('register-username').value;
-            const email = document.getElementById('register-email').value;
+            const email = document.getElementById('register-email').value || '';  // Make email optional
             const password = document.getElementById('register-password').value;
             
+            // Add validation for username and password
+            if (!username || !password) {
+                ui.registerError.textContent = 'Username and password are required';
+                ui.registerError.classList.remove('d-none');
+                return;
+            }
+            
+            console.log('Attempting to register:', { username, email, password: '********' });
+            
             const result = await api.register(username, email, password);
+            console.log('Registration result:', result);
             
             if (result.success) {
                 state.currentUser = {
@@ -495,8 +541,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             if (!sshCheck.success) {
                 const errorMessage = 'GitHub SSH authentication is not properly configured.\n\n' +
-                                    'Please run the setup script:\n' +
-                                    'python scripts/setup_github_ssh.py\n\n' +
+                                    'Please make sure SSH keys are set up correctly.\n\n' +
                                     'Error: ' + (sshCheck.error || 'Unknown SSH error');
                 alert(errorMessage);
                 return;
@@ -519,6 +564,22 @@ document.addEventListener('DOMContentLoaded', () => {
         
         async handleExportToPdf() {
             await api.exportToPdf(state.currentProject.id);
+        },
+        
+        async handleImportFromGithub() {
+            const repoUrl = prompt('Enter GitHub repository URL or name:');
+            if (!repoUrl) return;
+            
+            const result = await api.importFromGithub(repoUrl);
+            
+            if (result.success) {
+                alert('GitHub repository imported successfully.');
+                loadProjects();
+            } else if (result.ssh_error) {
+                alert('GitHub SSH authentication failed. Please verify your SSH keys are set up correctly.');
+            } else {
+                alert('Failed to import from GitHub: ' + (result.message || 'Unknown error'));
+            }
         },
         
         // Files
@@ -731,7 +792,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         results.forEach(result => {
             const project = result.project;
-            const relevanceScore = result.relevance_score.toFixed(1);
+            const relevanceScore = result.relevance_score ? result.relevance_score.toFixed(1) : '?';
             
             const item = document.createElement('div');
             item.className = 'list-group-item';
@@ -768,6 +829,31 @@ document.addEventListener('DOMContentLoaded', () => {
                 item.appendChild(filesList);
             }
             
+            // Add Neo4j relevance if available
+            if (result.neo4j_relevance && result.neo4j_relevance.length > 0) {
+                const relFilesList = document.createElement('div');
+                relFilesList.className = 'mt-2';
+                relFilesList.innerHTML = '<h6>Related Files:</h6>';
+                
+                const relFilesUl = document.createElement('ul');
+                relFilesUl.className = 'list-group list-group-flush mb-2';
+                
+                result.neo4j_relevance.forEach(relFile => {
+                    const fileItem = document.createElement('li');
+                    fileItem.className = 'list-group-item py-1';
+                    fileItem.innerHTML = `
+                        <a href="#" class="file-link" data-file-id="${relFile.file_id}">
+                            <i class="fas fa-file-alt me-2"></i>
+                            ${relFile.filename}
+                        </a>
+                    `;
+                    relFilesUl.appendChild(fileItem);
+                });
+                
+                relFilesList.appendChild(relFilesUl);
+                item.appendChild(relFilesList);
+            }
+            
             // Add open project handler
             const openButton = item.querySelector('button');
             openButton.addEventListener('click', () => {
@@ -776,17 +862,38 @@ document.addEventListener('DOMContentLoaded', () => {
                 ui.projectDetailSection.classList.remove('d-none');
             });
             
+            // Add file link handlers if available
+            const fileLinks = item.querySelectorAll('.file-link');
+            fileLinks.forEach(link => {
+                link.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const fileId = link.getAttribute('data-file-id');
+                    loadFile(fileId);
+                    ui.searchSection.classList.add('d-none');
+                    ui.fileDetailSection.classList.remove('d-none');
+                });
+            });
+            
             ui.searchResultsList.appendChild(item);
         });
     }
     
     // Data loading functions
     async function loadProjects() {
+        ui.projectsContainer.innerHTML = '<div class="col-12 text-center"><div class="spinner-border" role="status"></div></div>';
         const result = await api.getProjects();
         
         if (result.success) {
             state.projects = result.projects;
             renderProjects(state.projects);
+        } else {
+            ui.projectsContainer.innerHTML = `
+                <div class="col-12">
+                    <div class="alert alert-danger">
+                        Failed to load projects. Please try again.
+                    </div>
+                </div>
+            `;
         }
     }
     
@@ -828,19 +935,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 ui.textFileView.classList.remove('d-none');
                 ui.imageFileView.classList.add('d-none');
                 ui.fileContent.textContent = state.currentFile.content;
-                ui.editFile.classList.remove('d-none');
-                ui.enhanceImage.classList.add('d-none');
+                ui.editFile.parentElement.classList.remove('d-none');
+                ui.enhanceImage.parentElement.classList.add('d-none');
             } else if (state.currentFile.file_type === 'image') {
                 ui.textFileView.classList.add('d-none');
                 ui.imageFileView.classList.remove('d-none');
                 ui.fileImage.src = `/api/files/${fileId}/content`;
-                ui.editFile.classList.add('d-none');
-                ui.enhanceImage.classList.remove('d-none');
+                ui.editFile.parentElement.classList.add('d-none');
+                ui.enhanceImage.parentElement.classList.remove('d-none');
             } else {
                 ui.textFileView.classList.add('d-none');
                 ui.imageFileView.classList.add('d-none');
-                ui.editFile.classList.add('d-none');
-                ui.enhanceImage.classList.add('d-none');
+                ui.editFile.parentElement.classList.add('d-none');
+                ui.enhanceImage.parentElement.classList.add('d-none');
             }
             
             // Render versions
@@ -850,8 +957,11 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Initialize the application
     async function initialize() {
+        console.log("Initializing application...");
+        
         // Check if user is logged in
         const authStatus = await api.checkAuthStatus();
+        console.log("Auth status:", authStatus);
         
         if (authStatus.logged_in) {
             state.currentUser = {
@@ -866,6 +976,18 @@ document.addEventListener('DOMContentLoaded', () => {
             
             ui.projectsSection.classList.remove('d-none');
             loadProjects();
+        } else {
+            // Make sure the auth section is visible and forms are reset
+            ui.authSection.classList.remove('d-none');
+            ui.projectsSection.classList.add('d-none');
+            ui.projectDetailSection.classList.add('d-none');
+            ui.fileDetailSection.classList.add('d-none');
+            ui.searchSection.classList.add('d-none');
+            
+            ui.loginForm.reset();
+            ui.registerForm.reset();
+            
+            console.log("User not logged in, showing auth section");
         }
         
         // Set up event listeners
@@ -875,10 +997,18 @@ document.addEventListener('DOMContentLoaded', () => {
         ui.registerForm.addEventListener('submit', handlers.handleRegister);
         ui.loginButton.addEventListener('click', () => {
             ui.authSection.classList.remove('d-none');
+            ui.projectsSection.classList.add('d-none');
+            ui.projectDetailSection.classList.add('d-none');
+            ui.fileDetailSection.classList.add('d-none');
+            ui.searchSection.classList.add('d-none');
             ui.loginTab.click();
         });
         ui.registerButton.addEventListener('click', () => {
             ui.authSection.classList.remove('d-none');
+            ui.projectsSection.classList.add('d-none');
+            ui.projectDetailSection.classList.add('d-none');
+            ui.fileDetailSection.classList.add('d-none');
+            ui.searchSection.classList.add('d-none');
             ui.registerTab.click();
         });
         ui.logoutButton.addEventListener('click', handlers.handleLogout);
@@ -889,6 +1019,7 @@ document.addEventListener('DOMContentLoaded', () => {
             ui.registerTab.classList.remove('active');
             ui.loginForm.classList.remove('d-none');
             ui.registerForm.classList.add('d-none');
+            console.log("Switched to login tab");
         });
         
         ui.registerTab.addEventListener('click', (e) => {
@@ -897,6 +1028,7 @@ document.addEventListener('DOMContentLoaded', () => {
             ui.loginTab.classList.remove('active');
             ui.registerForm.classList.remove('d-none');
             ui.loginForm.classList.add('d-none');
+            console.log("Switched to register tab");
         });
         
         // Projects
@@ -975,7 +1107,11 @@ document.addEventListener('DOMContentLoaded', () => {
             ui.projectsSection.classList.remove('d-none');
             loadProjects();
         });
+        
+        console.log("App initialization complete");
     }
     
     // Run the application
     initialize();
+});
+

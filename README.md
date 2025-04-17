@@ -53,7 +53,7 @@ A comprehensive web-based laboratory notebook system for research documentation 
 
 4. Configure environment variables:
    ```bash
-   cp .env.example .env
+   cp env.example .env
    ```
    Edit the `.env` file to set:
    - `GITHUB_USERNAME`: Your GitHub username
