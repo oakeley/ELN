@@ -1115,3 +1115,300 @@ document.addEventListener('DOMContentLoaded', () => {
     initialize();
 });
 
+// Enhanced Text File Functionality
+
+// Function to handle text file creation with timestamps and signatures
+function enhanceTextFileCreation() {
+    // Get references to elements
+    const createTextFileBtn = document.getElementById('create-text-file');
+    const newTextFileBtn = document.querySelector('.btn-new-text-file');
+    const textFileModal = document.getElementById('create-text-file-modal');
+    const textFileForm = document.getElementById('create-text-file-form');
+    const textFileContent = document.getElementById('text-file-content');
+    const textFileEditor = document.getElementById('rich-text-editor');
+    
+    // Add timestamp button functionality
+    const addTimestampBtn = document.getElementById('add-timestamp');
+    if (addTimestampBtn) {
+        addTimestampBtn.addEventListener('click', function() {
+            const now = new Date();
+            const timestamp = `[${now.toISOString().replace('T', ' ').slice(0, 19)}] `;
+            
+            // Insert at cursor position or append
+            if (textFileEditor && textFileEditor.classList.contains('active')) {
+                // Rich text editor is active
+                insertIntoRichEditor(timestamp);
+            } else {
+                // Plain text area is active
+                insertAtCursor(textFileContent, timestamp);
+            }
+        });
+    }
+    
+    // Add signature button functionality
+    const addSignatureBtn = document.getElementById('add-signature');
+    if (addSignatureBtn) {
+        addSignatureBtn.addEventListener('click', function() {
+            const now = new Date();
+            const username = document.getElementById('username-display').textContent || 'User';
+            const signature = `\n\n--- Signed by ${username} at ${now.toLocaleString()} ---\n\n`;
+            
+            if (textFileEditor && textFileEditor.classList.contains('active')) {
+                // Rich text editor is active
+                insertIntoRichEditor(signature);
+            } else {
+                // Plain text area is active
+                insertAtCursor(textFileContent, signature);
+            }
+        });
+    }
+    
+    // Fix for the Create button
+    if (textFileForm) {
+        textFileForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            console.log("Text file form submitted");
+            
+            // Get the content from either rich editor or plain text
+            let content = textFileContent.value;
+            if (textFileEditor && textFileEditor.classList.contains('active')) {
+                content = textFileEditor.innerHTML;
+            }
+            
+            // Get filename
+            const filename = document.getElementById('text-file-name').value;
+            
+            // Check if we're in a project context
+            if (window.currentProject && window.currentProject.id) {
+                submitTextFile(window.currentProject.id, filename, content);
+            } else {
+                console.error("No active project found");
+                alert("Error: No active project. Please reload the page and try again.");
+            }
+        });
+    }
+    
+    // Toggle between rich text and plain text
+    const toggleEditorBtn = document.getElementById('toggle-editor');
+    if (toggleEditorBtn) {
+        toggleEditorBtn.addEventListener('click', function() {
+            const richTextContainer = document.getElementById('rich-text-container');
+            const plainTextContainer = document.getElementById('plain-text-container');
+            
+            if (richTextContainer.classList.contains('d-none')) {
+                // Switch to rich text
+                richTextContainer.classList.remove('d-none');
+                plainTextContainer.classList.add('d-none');
+                textFileEditor.innerHTML = convertToHtml(textFileContent.value);
+                toggleEditorBtn.innerHTML = '<i class="fas fa-code"></i> Plain Text';
+            } else {
+                // Switch to plain text
+                richTextContainer.classList.add('d-none');
+                plainTextContainer.classList.remove('d-none');
+                textFileContent.value = convertToPlainText(textFileEditor.innerHTML);
+                toggleEditorBtn.innerHTML = '<i class="fas fa-pen-fancy"></i> Rich Text';
+            }
+        });
+    }
+    
+    // Initialize the rich text toolbar buttons
+    initRichTextEditor();
+}
+
+// Helper function to submit the text file
+function submitTextFile(projectId, filename, content) {
+    console.log(`Submitting file: ${filename} to project ${projectId}`);
+    
+    // Create form data
+    const formData = new FormData();
+    formData.append('filename', filename);
+    formData.append('content', content);
+    
+    // Send API request
+    fetch(`/api/projects/${projectId}/files`, {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Close modal and refresh file list
+            const modal = bootstrap.Modal.getInstance(document.getElementById('create-text-file-modal'));
+            if (modal) {
+                modal.hide();
+            }
+            
+            // Reset form
+            document.getElementById('create-text-file-form').reset();
+            
+            // Reload project details to show the new file
+            if (window.loadProject && typeof window.loadProject === 'function') {
+                window.loadProject(projectId);
+            } else {
+                // Fallback to page refresh
+                window.location.reload();
+            }
+        } else {
+            alert('Failed to create file: ' + (data.message || 'Unknown error'));
+        }
+    })
+    .catch(error => {
+        console.error('Error creating file:', error);
+        alert('Error creating file. Please try again.');
+    });
+}
+
+// Helper function to insert text at cursor position
+function insertAtCursor(textarea, text) {
+    if (!textarea) return;
+    
+    const startPos = textarea.selectionStart;
+    const endPos = textarea.selectionEnd;
+    
+    textarea.value = 
+        textarea.value.substring(0, startPos) +
+        text +
+        textarea.value.substring(endPos, textarea.value.length);
+    
+    // Update cursor position
+    textarea.selectionStart = textarea.selectionEnd = startPos + text.length;
+    textarea.focus();
+}
+
+// Helper function for rich text editor
+function insertIntoRichEditor(text) {
+    const editor = document.getElementById('rich-text-editor');
+    if (!editor) return;
+    
+    // Get selection and range
+    const selection = window.getSelection();
+    if (selection.rangeCount > 0) {
+        const range = selection.getRangeAt(0);
+        if (range.commonAncestorContainer.parentNode === editor || 
+            editor.contains(range.commonAncestorContainer)) {
+            
+            // Create text node
+            const textNode = document.createTextNode(text);
+            range.deleteContents();
+            range.insertNode(textNode);
+            
+            // Set cursor after inserted text
+            range.setStartAfter(textNode);
+            range.setEndAfter(textNode);
+            selection.removeAllRanges();
+            selection.addRange(range);
+        } else {
+            // If cursor is not in editor, append to end
+            editor.appendChild(document.createTextNode(text));
+        }
+    } else {
+        // No selection, append to end
+        editor.appendChild(document.createTextNode(text));
+    }
+    editor.focus();
+}
+
+// Initialize rich text editor toolbar
+function initRichTextEditor() {
+    const editor = document.getElementById('rich-text-editor');
+    if (!editor) return;
+    
+    // Make content editable
+    editor.contentEditable = true;
+    
+    // Format buttons
+    const boldBtn = document.getElementById('format-bold');
+    const italicBtn = document.getElementById('format-italic');
+    const underlineBtn = document.getElementById('format-underline');
+    const h2Btn = document.getElementById('format-h2');
+    const h3Btn = document.getElementById('format-h3');
+    const ulBtn = document.getElementById('format-ul');
+    const olBtn = document.getElementById('format-ol');
+    
+    if (boldBtn) {
+        boldBtn.addEventListener('click', function() {
+            document.execCommand('bold', false, null);
+            editor.focus();
+        });
+    }
+    
+    if (italicBtn) {
+        italicBtn.addEventListener('click', function() {
+            document.execCommand('italic', false, null);
+            editor.focus();
+        });
+    }
+    
+    if (underlineBtn) {
+        underlineBtn.addEventListener('click', function() {
+            document.execCommand('underline', false, null);
+            editor.focus();
+        });
+    }
+    
+    if (h2Btn) {
+        h2Btn.addEventListener('click', function() {
+            document.execCommand('formatBlock', false, '<h2>');
+            editor.focus();
+        });
+    }
+    
+    if (h3Btn) {
+        h3Btn.addEventListener('click', function() {
+            document.execCommand('formatBlock', false, '<h3>');
+            editor.focus();
+        });
+    }
+    
+    if (ulBtn) {
+        ulBtn.addEventListener('click', function() {
+            document.execCommand('insertUnorderedList', false, null);
+            editor.focus();
+        });
+    }
+    
+    if (olBtn) {
+        olBtn.addEventListener('click', function() {
+            document.execCommand('insertOrderedList', false, null);
+            editor.focus();
+        });
+    }
+}
+
+// Convert plain text to HTML
+function convertToHtml(text) {
+    if (!text) return '';
+    
+    // Basic conversion
+    let html = text;
+    
+    // Convert newlines to <br>
+    html = html.replace(/\n/g, '<br>');
+    
+    return html;
+}
+
+// Convert HTML to plain text
+function convertToPlainText(html) {
+    if (!html) return '';
+    
+    // Create a temporary div
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = html;
+    
+    // Get text content
+    let text = tempDiv.textContent || tempDiv.innerText || '';
+    
+    return text;
+}
+
+// Initialize when the document is ready
+document.addEventListener('DOMContentLoaded', function() {
+    // Export the current project for other functions to use
+    window.getCurrentProject = function() {
+        return window.currentProject;
+    };
+    
+    // Call the enhancement function
+    enhanceTextFileCreation();
+});
