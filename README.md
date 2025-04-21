@@ -17,6 +17,7 @@ A comprehensive web-based laboratory notebook system for research documentation 
 
 - Python 3.8+
 - Neo4j Database
+- LaTeX (texlive packages for PDF export)
 - Ollama with mistral-small3.1 model (optional)
 - Stable Diffusion (optional)
 - Git and SSH keys for GitHub integration
@@ -41,7 +42,22 @@ A comprehensive web-based laboratory notebook system for research documentation 
    conda activate eln
    ```
 
-3. Set up SSH for GitHub:
+3. Install LaTeX dependencies (required for PDF export):
+   
+   On Ubuntu/Debian:
+   ```bash
+   sudo apt-get install texlive-latex-base texlive-fonts-recommended texlive-fonts-extra texlive-latex-extra
+   ```
+   
+   On macOS (using Homebrew):
+   ```bash
+   brew install --cask mactex
+   ```
+   
+   On Windows:
+   - Install MiKTeX or TeX Live from their official websites
+
+4. Set up SSH for GitHub:
    ```bash
    python scripts/setup_github_ssh.py
    ```
@@ -51,7 +67,7 @@ A comprehensive web-based laboratory notebook system for research documentation 
    - Guide you through adding them to GitHub
    - Test the connection
 
-4. Configure environment variables:
+5. Configure environment variables:
    ```bash
    cp env.example .env
    ```
@@ -62,12 +78,12 @@ A comprehensive web-based laboratory notebook system for research documentation 
    - `NEO4J_URI`, `NEO4J_USER`, `NEO4J_PASSWORD`: Neo4j database connection details
    - `GIT_USER_NAME`, `GIT_USER_EMAIL`: Git configuration for commits
 
-5. Run the application:
+6. Run the application:
    ```bash
    python run.py
    ```
 
-6. Access the application at: [http://localhost:5000](http://localhost:5000)
+7. Access the application at: [http://localhost:5000](http://localhost:5000)
 
 ## Testing
 
@@ -87,6 +103,21 @@ python -m unittest tests/test_github.py
 python -m unittest tests/test_integration.py
 python -m unittest tests/test_routes.py
 ```
+
+### Testing PDF Export
+
+A dedicated script is provided to test the PDF export functionality in isolation:
+
+```bash
+python app/test_pdf_export.py
+```
+
+This script:
+- Creates a test project with sample files
+- Generates a PDF using the LaTeX export system
+- Verifies PDF generation works correctly
+- Saves the output as `test_output.pdf` for inspection
+- Helps diagnose LaTeX-related issues without needing the full application
 
 ### Test Coverage
 
@@ -118,6 +149,12 @@ The test suite includes:
    - Validates the interaction between different system parts
    - Tests end-to-end user workflows
    - Ensures components work together correctly
+
+5. **PDF Export Tests** (`test_pdf_export.py`)
+   - Tests LaTeX template rendering
+   - Tests PDF generation with pdflatex
+   - Tests handling of text and image files
+   - Verifies PDF merging functionality
 
 ### Testing External Services
 
@@ -153,7 +190,8 @@ electronic-lab-notebook/
 │   ├── github_integration.py # GitHub SSH integration
 │   ├── neo4j_integration.py  # Neo4j database integration
 │   ├── ollama_integration.py # Ollama AI integration
-│   └── latex_export.py       # PDF export functionality
+│   ├── latex_export.py       # PDF export functionality
+│   └── test_pdf_export.py    # PDF export test script
 ├── scripts/                  # Utility scripts
 │   └── setup_github_ssh.py   # GitHub SSH setup script
 ├── tests/                    # Test suite
@@ -167,6 +205,22 @@ electronic-lab-notebook/
 ```
 
 ## Configuration
+
+### LaTeX Configuration
+
+For PDF export to work properly:
+
+1. Ensure LaTeX (texlive) is installed on your system
+2. The following packages are required:
+   - texlive-latex-base (core LaTeX functionality)
+   - texlive-fonts-recommended (standard fonts)
+   - texlive-fonts-extra (additional fonts)
+   - texlive-latex-extra (additional packages including 'pdfpages' for PDF merging)
+3. You can test your LaTeX setup using the provided `test_pdf_export.py` script
+
+```bash
+sudo apt-get install texlive-latex-base texlive-fonts-recommended texlive-fonts-extra texlive-latex-extra
+```
 
 ### SSH Key Setup
 
