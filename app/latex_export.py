@@ -4,31 +4,50 @@ import tempfile
 import shutil
 import subprocess
 import io
+from datetime import datetime
+import sys
 
 class LatexExport:
     def __init__(self):
         """Initialize LaTeX export functionality"""
         print("Initializing LatexExport")
-        # We'll use a minimal template with no complex syntax to avoid any Jinja2 issues
+        # Base template with placeholders
         self.template = r"""\documentclass[12pt]{article}
 \usepackage[a4paper, margin=1in]{geometry}
 \usepackage{graphicx}
 \usepackage{float}
+\usepackage{pdfpages}
+\usepackage{datetime}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+
+% Setup page headers
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{Electronic Laboratory Notebook}
+\fancyhead[R]{${title}$}
+\fancyfoot[C]{\thepage}
+
+\title{${title}$}
+\author{Electronic Laboratory Notebook}
+\date{\today}
 
 \begin{document}
 
-\begin{center}
-{\Large\bfseries ${title}$}
+\maketitle
+\tableofcontents
+\newpage
 
-\vspace{0.5cm}
-{\large ${abstract}$}
-\end{center}
+${abstract}$
 
-\vspace{1cm}
-
+% Text Files
 ${sections}$
 
+% Images
 ${images}$
+
+% PDF Imports
+${imported_pdfs}$
 
 \end{document}"""
     
@@ -59,26 +78,49 @@ ${images}$
         """Generate LaTeX code for a project - Without using Jinja2"""
         print("Generating LaTeX content")
         
-        # Create temporary directory for images
+        # Create temporary directory for files
         temp_dir = tempfile.mkdtemp()
         image_dir = os.path.join(temp_dir, 'images')
+        pdf_dir = os.path.join(temp_dir, 'pdfs')
         os.makedirs(image_dir, exist_ok=True)
+        os.makedirs(pdf_dir, exist_ok=True)
         
-        # Prepare sections
+        # Sort files by date (newest first)
+        try:
+            sorted_files = sorted(files, key=lambda f: f.updated_at if hasattr(f, 'updated_at') else datetime.now(), reverse=True)
+            print(f"Sorted {len(sorted_files)} files by date")
+        except Exception as e:
+            print(f"Error sorting files: {e}")
+            sorted_files = files
+        
+        # Prepare sections for text files
         sections_text = ""
-        for file in files:
+        for file in sorted_files:
             if file.file_type == 'text':
                 print(f"Adding text file: {file.filename}")
                 section_title = self.tex_escape(file.filename)
                 section_content = self.tex_escape(file.content or "No content available.")
-                sections_text += f"\\section*{{{section_title}}}\n{section_content}\n\n"
+                updated_date = ""
+                if hasattr(file, 'updated_at'):
+                    try:
+                        updated_date = f"Last Updated: {file.updated_at.strftime('%Y-%m-%d %H:%M:%S')}"
+                    except:
+                        updated_date = "Date unknown"
+                
+                sections_text += f"""\\section{{{section_title}}}
+\\textit{{{updated_date}}}
+
+{section_content}
+
+\\newpage
+"""
         
         # Prepare images
         images_text = ""
-        if any(file.file_type == 'image' for file in files):
-            images_text = "\\section*{Figures}\n"
+        if any(file.file_type == 'image' for file in sorted_files):
+            images_text = "\\section{Figures}\n"
             
-            for file in files:
+            for file in sorted_files:
                 if file.file_type == 'image':
                     print(f"Processing image file: {file.filename}")
                     safe_name = re.sub(r'[^a-zA-Z0-9_.-]', '_', file.filename)
@@ -95,16 +137,49 @@ ${images}$
     \\includegraphics[width=0.8\\textwidth]{{{image_path}}}
     \\caption{{{caption}}}
 \\end{{figure}}
+\\newpage
 """
                     except Exception as e:
                         print(f"Error copying image {file.file_path}: {str(e)}")
         
+        # Handle PDF files
+        imported_pdfs_text = ""
+        pdf_files = [f for f in sorted_files if f.file_type == 'binary' and f.filename.lower().endswith('.pdf')]
+        
+        if pdf_files:
+            imported_pdfs_text = "\\section{Imported PDF Documents}\n"
+            
+            for i, file in enumerate(pdf_files):
+                print(f"Processing PDF file: {file.filename}")
+                safe_name = re.sub(r'[^a-zA-Z0-9_.-]', '_', file.filename)
+                temp_pdf_path = os.path.join(pdf_dir, safe_name)
+                
+                try:
+                    shutil.copy2(file.file_path, temp_pdf_path)
+                    pdf_path = f"pdfs/{safe_name}"
+                    title = self.tex_escape(file.filename)
+                    
+                    imported_pdfs_text += f"""
+\\subsection{{{title}}}
+\\includepdf[pages=-, addtotoc={{1, section, 1, {title}, pdf:{i}}}, pagecommand={{}}]{{{pdf_path}}}
+\\newpage
+"""
+                except Exception as e:
+                    print(f"Error copying PDF {file.file_path}: {str(e)}")
+        
+        # Abstract section
+        abstract_text = f"""\\section{{Project Description}}
+{self.tex_escape(project.description or "No description provided.")}
+\\newpage
+"""
+        
         # Replace placeholders with content
         latex_content = self.template
         latex_content = latex_content.replace("${title}$", self.tex_escape(project.name))
-        latex_content = latex_content.replace("${abstract}$", self.tex_escape(project.description or "No description provided."))
+        latex_content = latex_content.replace("${abstract}$", abstract_text)
         latex_content = latex_content.replace("${sections}$", sections_text)
         latex_content = latex_content.replace("${images}$", images_text)
+        latex_content = latex_content.replace("${imported_pdfs}$", imported_pdfs_text)
         
         print(f"LaTeX content generated, {len(latex_content)} characters")
         return latex_content, temp_dir
@@ -127,7 +202,7 @@ ${images}$
                         cwd=temp_dir,
                         stdout=subprocess.PIPE,
                         stderr=subprocess.PIPE,
-                        timeout=30
+                        timeout=60  # Increased timeout for handling large PDFs
                     )
                     print(f"Return code: {process.returncode}")
                     
