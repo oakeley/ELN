@@ -62,7 +62,7 @@
 
 % Sections
 {% for section in project.sections %}
-\section{{{ section.title }}}
+\section{ {{ section.title }} }
 {{ section.content }}
 \newpage
 {% endfor %}
@@ -74,9 +74,9 @@
 \begin{figure}[H]
     \centering
     \includegraphics[width=0.8\textwidth]{%
-        "{{ image.path }}"
+       "{{ image.path }}"
     }
-    \caption{{{ image.caption }}}
+    \caption{ {{ image.caption }} }
 \end{figure}
 {% endfor %}
 {% endif %}

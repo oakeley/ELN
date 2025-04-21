@@ -8,6 +8,8 @@ from app.ollama_integration import OllamaIntegration
 from app.latex_export import LatexExport
 import os
 import json
+import hashlib
+import datetime
 from datetime import datetime
 import io
 
@@ -769,37 +771,78 @@ def import_from_github():
 # LaTeX export route
 @main_bp.route('/api/projects/<int:project_id>/export/pdf', methods=['GET'])
 def export_to_pdf(project_id):
+    print(f"PDF export requested for project_id: {project_id}")
+    
     if 'user_id' not in session:
+        print("User not logged in")
         return jsonify({'success': False, 'message': 'Not logged in'}), 401
     
     user_id = session['user_id']
+    print(f"User ID: {user_id}")
+    
     project = Project.query.filter_by(id=project_id, user_id=user_id).first()
     
     if not project:
+        print(f"Project {project_id} not found for user {user_id}")
         return jsonify({'success': False, 'message': 'Project not found'}), 404
+    
+    print(f"Project found: {project.name}")
     
     # Get files
     files = File.query.filter_by(project_id=project.id).all()
+    print(f"Found {len(files)} files for project")
     
-    # Export to PDF
-    latex = get_latex()
-    result = latex.export_project_to_pdf(project, files)
-    
-    if not result['success']:
-        return jsonify({'success': False, 'message': result.get('error', 'Failed to export to PDF')}), 500
-    
-    # Return PDF
-    if 'pdf_path' in result:
-        return send_file(result['pdf_path'], download_name=f"{project.name}.pdf")
-    elif 'pdf_content' in result:
-        return send_file(
-            io.BytesIO(result['pdf_content']),
-            mimetype='application/pdf',
-            as_attachment=True,
-            download_name=f"{project.name}.pdf"
-        )
-    else:
-        return jsonify({'success': False, 'message': 'PDF generation failed'}), 500
+    try:
+        # Export to PDF
+        latex = get_latex()
+        
+        print("Calling export_project_to_pdf")
+        result = latex.export_project_to_pdf(project, files)
+        
+        # Log the result structure
+        print(f"Export result type: {type(result)}")
+        if isinstance(result, dict):
+            print(f"Result keys: {list(result.keys())}")
+            print(f"Success: {result.get('success', False)}")
+        else:
+            print(f"Result is not a dictionary: {result}")
+            return jsonify({'success': False, 'message': 'Invalid result format from PDF generator'}), 500
+        
+        # Check success
+        if not result.get('success', False):
+            error_msg = result.get('error', 'Unknown error in PDF generation')
+            print(f"PDF export failed: {error_msg}")
+            return jsonify({'success': False, 'message': error_msg}), 500
+        
+        # Return PDF
+        print("PDF generation successful, preparing response")
+        
+        if 'pdf_path' in result:
+            print(f"Sending PDF from file: {result['pdf_path']}")
+            return send_file(
+                result['pdf_path'], 
+                download_name=f"{project.name}.pdf",
+                as_attachment=True,
+                mimetype='application/pdf'
+            )
+        elif 'pdf_content' in result and result['pdf_content']:
+            print(f"Sending PDF from memory, size: {len(result['pdf_content'])} bytes")
+            return send_file(
+                io.BytesIO(result['pdf_content']),
+                mimetype='application/pdf',
+                as_attachment=True,
+                download_name=f"{project.name}.pdf"
+            )
+        else:
+            print("No PDF content found in result")
+            return jsonify({'success': False, 'message': 'PDF was not generated'}), 500
+            
+    except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"Exception in PDF export: {str(e)}")
+        print(f"Traceback: {error_details}")
+        return jsonify({'success': False, 'message': f'Error generating PDF: {str(e)}'}), 500
 
 # Search routes
 @main_bp.route('/api/search', methods=['GET'])
