@@ -6,6 +6,8 @@ import subprocess
 import io
 from datetime import datetime
 import sys
+import json
+from flask import current_app, session
 
 class LatexExport:
     def __init__(self):
@@ -20,6 +22,12 @@ class LatexExport:
 \usepackage{datetime}
 \usepackage{fancyhdr}
 \usepackage{titlesec}
+\usepackage{hyperref}
+\usepackage{color}
+\usepackage{framed}
+
+% Define colors
+\definecolor{signaturecolor}{rgb}{0.95,0.95,1.0}
 
 % Setup page headers
 \pagestyle{fancy}
@@ -49,7 +57,18 @@ ${images}$
 % PDF Imports
 ${imported_pdfs}$
 
+% Digital Signatures
+${signatures}$
+
 \end{document}"""
+        
+        # Try to initialize the digital signature module
+        try:
+            from .digital_signature import DigitalSignature
+            self.signature_manager = DigitalSignature()
+        except ImportError:
+            print("Digital signature module not available")
+            self.signature_manager = None
     
     @staticmethod
     def tex_escape(text):
@@ -74,8 +93,59 @@ ${imported_pdfs}$
         regex = re.compile('|'.join(re.escape(key) for key in sorted(conv.keys(), key=lambda item: -len(item))))
         return regex.sub(lambda match: conv[match.group()], text)
     
+    def is_rtf_content(self, content):
+        """Determine if content is in RTF format"""
+        return content and content.strip().startswith(r'{\rtf')
+
+    def extract_text_from_rtf(self, rtf_content):
+        """Extract plain text from RTF content using regex patterns"""
+        if not rtf_content:
+            return ""
+        
+        # Remove RTF control sequences
+        text = re.sub(r'\\[a-z0-9]+', ' ', rtf_content)  # Remove control words
+        text = re.sub(r'\{|\}', '', text)  # Remove braces
+        text = re.sub(r'\\\'[0-9a-f]{2}', '', text)  # Remove hex escapes
+        text = re.sub(r'\\\*.*?;', '', text)  # Remove other control sequences
+        text = re.sub(r'\\par', '\n', text)  # Replace paragraph marks with newlines
+        
+        # Clean up whitespace
+        text = re.sub(r'\s+', ' ', text)
+        
+        return text.strip()
+    
+    def process_content(self, content):
+        """Process content, handling RTF if necessary"""
+        if not content:
+            return "No content available."
+            
+        # Check if content is RTF
+        if self.is_rtf_content(content):
+            print("RTF content detected, extracting plain text")
+            return self.extract_text_from_rtf(content)
+        
+        return content
+    
+    def extract_signatures(self, content):
+        """Extract digital signatures from content for verification"""
+        signatures = []
+        
+        # Simple pattern matching for signatures
+        signature_pattern = r'\[Signed: (.*?) at (.*?)\]'
+        matches = re.findall(signature_pattern, content)
+        
+        for match in matches:
+            username, timestamp = match
+            signatures.append({
+                'username': username.strip(),
+                'timestamp': timestamp.strip(),
+                'extracted': True
+            })
+        
+        return signatures
+    
     def generate_latex(self, project, files):
-        """Generate LaTeX code for a project - Without using Jinja2"""
+        """Generate LaTeX code for a project"""
         print("Generating LaTeX content")
         
         # Create temporary directory for files
@@ -93,13 +163,30 @@ ${imported_pdfs}$
             print(f"Error sorting files: {e}")
             sorted_files = files
         
+        # Collect signatures for verification section
+        all_signatures = []
+        
         # Prepare sections for text files
         sections_text = ""
         for file in sorted_files:
             if file.file_type == 'text':
                 print(f"Adding text file: {file.filename}")
                 section_title = self.tex_escape(file.filename)
-                section_content = self.tex_escape(file.content or "No content available.")
+                
+                # Process content (handle RTF if needed)
+                content = file.content
+                if hasattr(file, 'rtf_content') and file.rtf_content:
+                    content = self.process_content(file.rtf_content)
+                else:
+                    content = self.process_content(content)
+                
+                # Extract signatures for verification
+                file_signatures = self.extract_signatures(content)
+                for sig in file_signatures:
+                    sig['filename'] = file.filename
+                    all_signatures.append(sig)
+                
+                section_content = self.tex_escape(content)
                 updated_date = ""
                 if hasattr(file, 'updated_at'):
                     try:
@@ -172,6 +259,54 @@ ${imported_pdfs}$
 {self.tex_escape(project.description or "No description provided.")}
 \\newpage
 """
+
+        # Digital signatures section
+        signatures_text = ""
+        if all_signatures:
+            signatures_text = "\\section{Digital Signatures}\n"
+            signatures_text += "This document contains the following digital signatures:\n\n"
+            
+            for i, sig in enumerate(all_signatures):
+                username = self.tex_escape(sig.get('username', 'Unknown'))
+                timestamp = self.tex_escape(sig.get('timestamp', 'Unknown'))
+                filename = self.tex_escape(sig.get('filename', 'Unknown file'))
+                
+                signatures_text += f"""
+\\begin{{colorbox}}{{signaturecolor}}{{
+\\begin{{minipage}}{{0.95\\textwidth}}
+\\textbf{{Signature {i+1}:}}\\\\
+User: {username}\\\\
+Timestamp: {timestamp}\\\\
+File: {filename}\\\\
+\\end{{minipage}}
+}}
+\\vspace{{0.5cm}}
+"""
+            
+            # Add a final document signature if signature manager is available
+            if self.signature_manager:
+                try:
+                    username = "ELN System"
+                    timestamp = datetime.utcnow().isoformat()
+                    sig_data = {
+                        'username': username,
+                        'timestamp': timestamp,
+                        'document': project.name,
+                        'file_count': len(sorted_files)
+                    }
+                    
+                    signatures_text += f"""
+\\begin{{colorbox}}{{signaturecolor}}{{
+\\begin{{minipage}}{{0.95\\textwidth}}
+\\textbf{{Document Verification Signature:}}\\\\
+This document was generated by Electronic Laboratory Notebook\\\\
+Generated at: {timestamp}\\\\
+Document contains {len(sorted_files)} files and {len(all_signatures)} embedded signatures\\\\
+\\end{{minipage}}
+}}
+"""
+                except Exception as e:
+                    print(f"Error creating document signature: {str(e)}")
         
         # Replace placeholders with content
         latex_content = self.template
@@ -180,6 +315,7 @@ ${imported_pdfs}$
         latex_content = latex_content.replace("${sections}$", sections_text)
         latex_content = latex_content.replace("${images}$", images_text)
         latex_content = latex_content.replace("${imported_pdfs}$", imported_pdfs_text)
+        latex_content = latex_content.replace("${signatures}$", signatures_text)
         
         print(f"LaTeX content generated, {len(latex_content)} characters")
         return latex_content, temp_dir

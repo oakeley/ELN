@@ -14,6 +14,150 @@ from datetime import datetime
 import io
 import re
 from .rtf_handler import is_rtf_content, extract_text_from_rtf, process_rtf_file, handle_content_update
+from .digital_signature import DigitalSignature
+
+# Initialize signature manager
+def get_signature_manager():
+    return DigitalSignature()
+
+@main_bp.route('/api/create-signature', methods=['POST'])
+def create_signature():
+    """Create a digital signature for the current user"""
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'message': 'Not logged in'}), 401
+    
+    data = request.get_json()
+    username = session.get('username', 'Unknown User')
+    user_id = session.get('user_id')
+    
+    # Create timestamp and signature
+    sig_manager = get_signature_manager()
+    timestamp = sig_manager.create_timestamp()
+    
+    # Add additional context for the signature
+    additional_data = data.get('additional_data', {})
+    if isinstance(additional_data, str):
+        additional_data = {'context': additional_data}
+    
+    # Add user ID for verification
+    additional_data['user_id'] = user_id
+    
+    # Create the signature
+    signature = sig_manager.create_signature(username, timestamp, additional_data)
+    
+    # Return both the signature data and a formatted display version
+    return jsonify({
+        'success': True,
+        'signature': signature,
+        'formatted': sig_manager.format_signature_for_display(signature)
+    })
+
+@main_bp.route('/api/verify-signature', methods=['POST'])
+def verify_signature():
+    """Verify a digital signature"""
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'message': 'Not logged in'}), 401
+    
+    data = request.get_json()
+    signature_data = data.get('signature')
+    signature_b64 = signature_data.get('signature')
+    
+    # Create the original data JSON string
+    original_data = {
+        'username': signature_data.get('username'),
+        'timestamp': signature_data.get('timestamp'),
+        'data': signature_data.get('data')
+    }
+    original_json = json.dumps(original_data, sort_keys=True)
+    
+    # Verify the signature
+    sig_manager = get_signature_manager()
+    is_valid = sig_manager.verify_signature(original_json, signature_b64)
+    
+    return jsonify({
+        'success': True,
+        'valid': is_valid,
+        'message': 'Signature is valid' if is_valid else 'Signature verification failed'
+    })
+
+@main_bp.route('/api/file/<int:file_id>/add-signature', methods=['POST'])
+def add_file_signature(file_id):
+    """Add a digital signature to a file and save it"""
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'message': 'Not logged in'}), 401
+    
+    user_id = session['user_id']
+    file = File.query.join(Project).filter(File.id == file_id, Project.user_id == user_id).first()
+    
+    if not file:
+        return jsonify({'success': False, 'message': 'File not found'}), 404
+    
+    # Only allow signing text files
+    if file.file_type != 'text':
+        return jsonify({'success': False, 'message': 'Only text files can be signed'}), 400
+    
+    data = request.get_json()
+    username = session.get('username', 'Unknown User')
+    
+    # Create timestamp and signature
+    sig_manager = get_signature_manager()
+    timestamp = sig_manager.create_timestamp()
+    
+    # Add file context to the signature
+    additional_data = {
+        'file_id': file.id,
+        'filename': file.filename,
+        'content_hash': hashlib.sha256(file.content.encode('utf-8')).hexdigest()
+    }
+    
+    # Create the signature
+    signature = sig_manager.create_signature(username, timestamp, additional_data)
+    
+    # Format the signature for insertion
+    formatted_signature = sig_manager.format_signature_for_display(signature)
+    
+    # Determine where to add the signature
+    position = data.get('position', 'end')  # 'end', 'start', or 'cursor'
+    if position == 'end':
+        # Add signature at the end of the content
+        file.content = file.content + "\n\n" + formatted_signature
+    elif position == 'start':
+        # Add signature at the beginning of the content
+        file.content = formatted_signature + "\n\n" + file.content
+    else:
+        # If position is not specified or invalid, add at the end
+        file.content = file.content + "\n\n" + formatted_signature
+    
+    # Update file
+    file.updated_at = datetime.utcnow()
+    
+    # Create a new version
+    last_version = FileVersion.query.filter_by(file_id=file.id).order_by(FileVersion.version_number.desc()).first()
+    version_number = 1
+    if last_version:
+        version_number = last_version.version_number + 1
+    
+    version = FileVersion(
+        version_number=version_number,
+        content=file.content,
+        file_path=file.file_path,
+        commit_message=f"Added digital signature by {username}",
+        file_id=file.id
+    )
+    
+    db.session.add(version)
+    db.session.commit()
+    
+    return jsonify({
+        'success': True,
+        'message': 'Signature added to file',
+        'file': {
+            'id': file.id,
+            'filename': file.filename,
+            'content': file.content
+        },
+        'signature': signature
+    })
 
 # Create blueprint
 main_bp = Blueprint('main', __name__)

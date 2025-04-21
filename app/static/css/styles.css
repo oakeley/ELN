@@ -333,3 +333,73 @@ footer {
     background-color: #fffffe;
     box-shadow: 0 2px 8px rgba(0,0,0,0.1);
 }
+
+/* Styles for digital signatures and timestamps */
+.eln-signature {
+    display: inline-block;
+    margin: 0.5rem 0;
+    padding: 0.5rem 1rem;
+    background-color: #f0f5ff;
+    border: 1px solid #d0d0ff;
+    border-radius: 4px;
+    font-family: monospace;
+    color: #333;
+}
+
+.eln-timestamp {
+    display: inline-block;
+    margin: 0.25rem 0;
+    padding: 0.25rem 0.5rem;
+    background-color: #f5f5f5;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-family: monospace;
+    color: #666;
+}
+
+/* Signature button styles */
+.btn-signature {
+    color: #fff;
+    background-color: #4b6cb7;
+    border-color: #3b5cb7;
+}
+
+.btn-signature:hover {
+    background-color: #3b5cb7;
+    border-color: #2b4ca7;
+}
+
+/* Timestamp button styles */
+.btn-timestamp {
+    color: #fff;
+    background-color: #6b7cb7;
+    border-color: #5b6cb7;
+}
+
+.btn-timestamp:hover {
+    background-color: #5b6cb7;
+    border-color: #4b5ca7;
+}
+
+/* Rich text editor signature styling */
+#rich-text-editor .eln-signature {
+    display: inline-block;
+    margin: 0.5rem 0;
+    padding: 0.5rem 1rem;
+    background-color: #f0f5ff;
+    border: 1px solid #d0d0ff;
+    border-radius: 4px;
+    font-family: monospace;
+    color: #333;
+}
+
+#rich-text-editor .eln-timestamp {
+    display: inline-block;
+    margin: 0.25rem 0;
+    padding: 0.25rem 0.5rem;
+    background-color: #f5f5f5;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-family: monospace;
+    color: #666;
+}

@@ -1,5 +1,137 @@
 // Main JavaScript for Electronic Laboratory Notebook
 
+// Timestamp and Digital Signature functionality
+document.addEventListener('DOMContentLoaded', function() {
+    // Timestamp insertion
+    const addTimestampBtn = document.getElementById('add-timestamp');
+    if (addTimestampBtn) {
+        addTimestampBtn.addEventListener('click', function() {
+            const now = new Date();
+            const formattedTime = now.toISOString().replace('T', ' ').slice(0, 19);
+            const timestampText = `[Timestamp: ${formattedTime}]`;
+            
+            // Insert at cursor position
+            insertToActiveEditor(timestampText);
+        });
+    }
+    
+    // Digital signature insertion
+    const addSignatureBtn = document.getElementById('add-signature');
+    if (addSignatureBtn) {
+        addSignatureBtn.addEventListener('click', function() {
+            // First, create a secure digital signature from the server
+            fetch('/api/create-signature', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    additional_data: 'Document signature requested from editor'
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Insert the formatted signature
+                    insertToActiveEditor(data.formatted);
+                } else {
+                    alert('Failed to create digital signature: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error creating signature:', error);
+                
+                // Fallback to a simple signature if the server request fails
+                const username = document.getElementById('username-display')?.textContent || 'User';
+                const now = new Date();
+                const formattedTime = now.toISOString().replace('T', ' ').slice(0, 19);
+                const signatureText = `[Signed: ${username} at ${formattedTime}]`;
+                
+                insertToActiveEditor(signatureText);
+            });
+        });
+    }
+    
+    // Helper function to insert text into whichever editor is active
+    function insertToActiveEditor(text) {
+        const richTextContainer = document.getElementById('rich-text-container');
+        const plainTextContainer = document.getElementById('plain-text-container');
+        
+        if (richTextContainer && plainTextContainer) {
+            // Check which editor is active
+            const isRichTextActive = !richTextContainer.classList.contains('d-none');
+            
+            if (isRichTextActive) {
+                // Insert into rich text editor
+                const editor = document.getElementById('rich-text-editor');
+                insertHtmlAtCursor(editor, `<span class="eln-signature">${text}</span>`);
+            } else {
+                // Insert into plain text editor
+                const textarea = document.getElementById('text-file-content');
+                insertAtCursor(textarea, text);
+            }
+        } else {
+            console.warn('Editor containers not found');
+        }
+    }
+    
+    // Helper function to insert text at cursor position in a textarea
+    function insertAtCursor(field, text) {
+        if (!field) return;
+        
+        if (field.selectionStart || field.selectionStart === 0) {
+            const startPos = field.selectionStart;
+            const endPos = field.selectionEnd;
+            field.value = field.value.substring(0, startPos) 
+                        + text 
+                        + field.value.substring(endPos, field.value.length);
+            field.selectionStart = startPos + text.length;
+            field.selectionEnd = startPos + text.length;
+            field.focus();
+        } else {
+            field.value += text;
+        }
+        
+        // Trigger change event for any listeners
+        field.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    
+    // Helper function to insert HTML at cursor position in a contenteditable div
+    function insertHtmlAtCursor(element, html) {
+        if (!element) return;
+        
+        // Focus the element if it's not already
+        element.focus();
+        
+        // Get the current selection
+        const selection = window.getSelection();
+        if (selection.rangeCount > 0) {
+            // Get the first range of the selection
+            const range = selection.getRangeAt(0);
+            
+            // Delete any current selection
+            range.deleteContents();
+            
+            // Create a fragment with the HTML to insert
+            const fragment = document.createRange().createContextualFragment(html);
+            
+            // Insert the fragment
+            range.insertNode(fragment);
+            
+            // Move the caret to the end of the inserted content
+            range.collapse(false);
+            selection.removeAllRanges();
+            selection.addRange(range);
+        } else {
+            // If no selection, just append to the end
+            element.innerHTML += html;
+        }
+        
+        // Trigger input event for any listeners
+        element.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+});
+
 document.addEventListener('shown.bs.modal', function(event) {
     if (event.target.id === 'create-text-file-modal') {
         // Initialize the rich text editor
