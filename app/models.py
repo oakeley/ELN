@@ -30,6 +30,7 @@ class File(db.Model):
     file_path = db.Column(db.String(200), nullable=False)
     file_type = db.Column(db.String(20), nullable=False)
     content = db.Column(db.Text, nullable=True)
+    rtf_content = db.Column(db.Text, nullable=True)  # Add this line for RTF content
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     project_id = db.Column(db.Integer, db.ForeignKey('project.id'), nullable=False)
@@ -42,6 +43,7 @@ class FileVersion(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     version_number = db.Column(db.Integer, nullable=False)
     content = db.Column(db.Text, nullable=True)
+    rtf_content = db.Column(db.Text, nullable=True)  # Add this line for RTF content
     file_path = db.Column(db.String(200), nullable=False)
     commit_message = db.Column(db.String(200), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)

@@ -12,6 +12,8 @@ import hashlib
 import datetime
 from datetime import datetime
 import io
+import re
+from .rtf_handler import is_rtf_content, extract_text_from_rtf, process_rtf_file, handle_content_update
 
 # Create blueprint
 main_bp = Blueprint('main', __name__)
@@ -308,12 +310,37 @@ def create_file(project_id):
         filename = request.form.get('filename', 'untitled.txt')
         content = request.form.get('content', '')
         
-        # Create file record
+        # Check if content is RTF
+        rtf_content = None
+        if content.strip().startswith('{\\rtf'):
+            print(f"RTF content detected in {filename}, storing both RTF and plain text")
+            rtf_content = content
+            
+            # Extract plain text from RTF for display and search
+            try:
+                # Simple RTF to text conversion - strip RTF tags
+                cleaned_content = re.sub(r'\\[a-z0-9]+', ' ', content)  # Remove control words
+                cleaned_content = re.sub(r'\{|\}', '', cleaned_content)  # Remove braces
+                cleaned_content = re.sub(r'\\\'[0-9a-f]{2}', '', cleaned_content)  # Remove hex escapes
+                cleaned_content = re.sub(r'\\par', '\n', cleaned_content)  # Replace paragraph marks with newlines
+                cleaned_content = re.sub(r'\\\*.*?;', '', cleaned_content)  # Remove other control sequences
+                
+                # Further clean up whitespace
+                cleaned_content = re.sub(r'\s+', ' ', cleaned_content)
+                
+                content = cleaned_content.strip()
+                print(f"Extracted plain text: {len(content)} characters")
+            except Exception as rtf_err:
+                print(f"Error processing RTF content: {rtf_err}")
+                # Keep the original content if extraction fails
+        
+        # Create file record with RTF support
         file = File(
             filename=filename,
             file_path=os.path.join(current_app.config['UPLOAD_FOLDER'], filename),
             file_type='text',
             content=content,
+            rtf_content=rtf_content,  # Store the RTF content if available
             project_id=project.id
         )
         
@@ -336,10 +363,11 @@ def create_file(project_id):
             # Log error but continue
             print(f"Integration error: {str(e)}")
         
-        # Create initial version
+        # Create initial version with RTF support
         version = FileVersion(
             version_number=1,
             content=content,
+            rtf_content=rtf_content,  # Store the RTF content in the version as well
             file_path=file.file_path,
             commit_message="Initial version",
             file_id=file.id
@@ -355,7 +383,8 @@ def create_file(project_id):
                 'filename': file.filename,
                 'file_type': file.file_type,
                 'created_at': file.created_at.isoformat(),
-                'updated_at': file.updated_at.isoformat()
+                'updated_at': file.updated_at.isoformat(),
+                'has_rtf': rtf_content is not None  # Indicate if the file has RTF content
             }
         })
     
@@ -372,24 +401,65 @@ def create_file(project_id):
         # Determine file type
         file_type = 'binary'
         content = None
+        rtf_content = None
         
         if original_filename.lower().endswith(('.jpg', '.jpeg', '.png', '.gif')):
             file_type = 'image'
+        elif original_filename.lower().endswith('.rtf'):
+            file_type = 'text'
+            try:
+                with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                    rtf_content = f.read()
+                
+                # Extract plain text from RTF for display and search
+                try:
+                    # Simple RTF to text conversion - strip RTF tags
+                    cleaned_content = re.sub(r'\\[a-z0-9]+', ' ', rtf_content)
+                    cleaned_content = re.sub(r'\{|\}', '', cleaned_content)
+                    cleaned_content = re.sub(r'\\\'[0-9a-f]{2}', '', cleaned_content)
+                    cleaned_content = re.sub(r'\\par', '\n', cleaned_content)
+                    cleaned_content = re.sub(r'\\\*.*?;', '', cleaned_content)
+                    
+                    # Further clean up whitespace
+                    cleaned_content = re.sub(r'\s+', ' ', cleaned_content)
+                    
+                    content = cleaned_content.strip()
+                    print(f"Extracted plain text from RTF file: {len(content)} characters")
+                except Exception as rtf_err:
+                    print(f"Error processing RTF file: {rtf_err}")
+                    content = "RTF content (could not extract plain text)"
+            except Exception as e:
+                print(f"Error reading RTF file: {str(e)}")
+                file_type = 'binary'
         elif original_filename.lower().endswith(('.txt', '.md', '.csv', '.json')):
             file_type = 'text'
             try:
-                with open(file_path, 'r') as f:
+                with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                     content = f.read()
+                    
+                    # Check if the file contains RTF content despite the extension
+                    if content.strip().startswith('{\\rtf'):
+                        print(f"RTF content detected in {original_filename}")
+                        rtf_content = content
+                        
+                        # Extract plain text from RTF
+                        cleaned_content = re.sub(r'\\[a-z0-9]+', ' ', content)
+                        cleaned_content = re.sub(r'\{|\}', '', cleaned_content)
+                        cleaned_content = re.sub(r'\\\'[0-9a-f]{2}', '', cleaned_content)
+                        cleaned_content = re.sub(r'\\par', '\n', cleaned_content)
+                        cleaned_content = re.sub(r'\\\*.*?;', '', cleaned_content)
+                        content = re.sub(r'\s+', ' ', cleaned_content).strip()
             except:
                 # If reading as text fails, keep as binary
                 file_type = 'binary'
         
-        # Create file record
+        # Create file record with RTF support
         file = File(
             filename=original_filename,
             file_path=file_path,
             file_type=file_type,
             content=content,
+            rtf_content=rtf_content,  # Store the RTF content if available
             project_id=project.id
         )
         
@@ -424,10 +494,11 @@ def create_file(project_id):
             # Log error but continue
             print(f"Integration error: {str(e)}")
         
-        # Create initial version
+        # Create initial version with RTF support
         version = FileVersion(
             version_number=1,
             content=content,
+            rtf_content=rtf_content,  # Store the RTF content in the version as well
             file_path=file_path,
             commit_message="Initial version",
             file_id=file.id
@@ -443,7 +514,8 @@ def create_file(project_id):
                 'filename': file.filename,
                 'file_type': file.file_type,
                 'created_at': file.created_at.isoformat(),
-                'updated_at': file.updated_at.isoformat()
+                'updated_at': file.updated_at.isoformat(),
+                'has_rtf': rtf_content is not None  # Indicate if the file has RTF content
             }
         })
     
@@ -473,7 +545,7 @@ def get_file(file_id):
     
     # Return appropriate data based on file type
     if file.file_type == 'text':
-        return jsonify({
+        response_data = {
             'success': True,
             'file': {
                 'id': file.id,
@@ -484,7 +556,14 @@ def get_file(file_id):
                 'updated_at': file.updated_at.isoformat(),
                 'versions': versions
             }
-        })
+        }
+        
+        # Add RTF content if available
+        if hasattr(file, 'rtf_content') and file.rtf_content:
+            response_data['file']['rtf_content'] = file.rtf_content
+            response_data['file']['has_rtf'] = True
+        
+        return jsonify(response_data)
     else:
         # Return metadata for binary/image files
         return jsonify({
@@ -538,8 +617,37 @@ def update_file(file_id):
     # Get commit message
     commit_message = data.get('commit_message', 'Updated file')
     
+    # Get content and check for RTF
+    new_content = data.get('content', file.content)
+    new_rtf_content = data.get('rtf_content', None)
+    
+    # If no explicit RTF content was provided, check if the content is RTF
+    if new_rtf_content is None and new_content.strip().startswith('{\\rtf'):
+        print(f"RTF content detected in update for {file.filename}")
+        new_rtf_content = new_content
+        
+        # Extract plain text from RTF for display and search
+        try:
+            # Simple RTF to text conversion - strip RTF tags
+            cleaned_content = re.sub(r'\\[a-z0-9]+', ' ', new_content)  # Remove control words
+            cleaned_content = re.sub(r'\{|\}', '', cleaned_content)  # Remove braces
+            cleaned_content = re.sub(r'\\\'[0-9a-f]{2}', '', cleaned_content)  # Remove hex escapes
+            cleaned_content = re.sub(r'\\par', '\n', cleaned_content)  # Replace paragraph marks with newlines
+            cleaned_content = re.sub(r'\\\*.*?;', '', cleaned_content)  # Remove other control sequences
+            
+            # Further clean up whitespace
+            cleaned_content = re.sub(r'\s+', ' ', cleaned_content)
+            
+            new_content = cleaned_content.strip()
+            print(f"Extracted plain text: {len(new_content)} characters")
+        except Exception as rtf_err:
+            print(f"Error processing RTF content: {rtf_err}")
+            # Keep the original content if extraction fails
+    
     # Update file content
-    file.content = data.get('content', file.content)
+    file.content = new_content
+    if hasattr(file, 'rtf_content'):
+        file.rtf_content = new_rtf_content
     file.updated_at = datetime.utcnow()
     
     # Create new version
@@ -548,9 +656,11 @@ def update_file(file_id):
     if last_version:
         version_number = last_version.version_number + 1
     
+    # Create version with RTF support
     version = FileVersion(
         version_number=version_number,
-        content=file.content,
+        content=new_content,
+        rtf_content=new_rtf_content if hasattr(file, 'rtf_content') else None,
         file_path=file.file_path,
         commit_message=commit_message,
         file_id=file.id
@@ -575,7 +685,7 @@ def update_file(file_id):
         # Log error but continue
         print(f"Integration error: {str(e)}")
     
-    return jsonify({
+    response_data = {
         'success': True,
         'file': {
             'id': file.id,
@@ -586,7 +696,14 @@ def update_file(file_id):
             'updated_at': file.updated_at.isoformat(),
             'version': version_number
         }
-    })
+    }
+    
+    # Add RTF content to response if available
+    if hasattr(file, 'rtf_content') and file.rtf_content:
+        response_data['file']['rtf_content'] = file.rtf_content
+        response_data['file']['has_rtf'] = True
+    
+    return jsonify(response_data)
 
 @main_bp.route('/api/files/<int:file_id>', methods=['DELETE'])
 def delete_file(file_id):
@@ -628,7 +745,7 @@ def get_file_version(file_id, version_id):
     if not version:
         return jsonify({'success': False, 'message': 'Version not found'}), 404
     
-    return jsonify({
+    response_data = {
         'success': True,
         'version': {
             'id': version.id,
@@ -637,7 +754,14 @@ def get_file_version(file_id, version_id):
             'commit_message': version.commit_message,
             'created_at': version.created_at.isoformat()
         }
-    })
+    }
+    
+    # Add RTF content if available
+    if hasattr(version, 'rtf_content') and version.rtf_content:
+        response_data['version']['rtf_content'] = version.rtf_content
+        response_data['version']['has_rtf'] = True
+    
+    return jsonify(response_data)
 
 # Image enhancement routes
 @main_bp.route('/api/files/<int:file_id>/enhance', methods=['POST'])

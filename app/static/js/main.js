@@ -1,5 +1,25 @@
 // Main JavaScript for Electronic Laboratory Notebook
 
+document.addEventListener('shown.bs.modal', function(event) {
+    if (event.target.id === 'create-text-file-modal') {
+        // Initialize the rich text editor
+        const richTextToggle = document.querySelector('#toggle-editor');
+        if (richTextToggle) {
+            console.log('Modal opened, initializing rich text editor');
+            
+            // Ensure we start in plain text mode
+            const richTextContainer = document.getElementById('rich-text-container');
+            const plainTextContainer = document.getElementById('plain-text-container');
+            
+            if (richTextContainer) richTextContainer.classList.add('d-none');
+            if (plainTextContainer) plainTextContainer.classList.remove('d-none');
+            
+            // Reset the button text
+            richTextToggle.innerHTML = '<i class="fas fa-pen-fancy"></i> Rich Text';
+        }
+    }
+});
+
 document.addEventListener('DOMContentLoaded', () => {
     console.log('Electronic Laboratory Notebook initialized');
     
@@ -1459,65 +1479,118 @@ function convertToPlainText(html) {
 
 // Initialize when the document is ready
 document.addEventListener('DOMContentLoaded', function() {
-    // Find the Create Entry button
-    const createEntryBtn = document.querySelector('#create-entry, button[id$="create-entry"]');
+    // Rich Text Editor Toggle
+    const richTextToggle = document.querySelector('.btn-rich-text, #toggle-editor, [aria-label="Rich Text"]');
+    const richTextContainer = document.getElementById('rich-text-container');
+    const plainTextContainer = document.getElementById('plain-text-container');
+    const richTextEditor = document.getElementById('rich-text-editor');
+    const plainTextEditor = document.getElementById('text-file-content');
     
-    if (createEntryBtn) {
-        console.log("Found Create Entry button, attaching override handler");
+    // Handle the rich text toggle button
+    if (richTextToggle) {
+        console.log('Rich text toggle button found:', richTextToggle);
         
-        createEntryBtn.addEventListener('click', function(e) {
+        richTextToggle.addEventListener('click', function(e) {
+            console.log('Rich text toggle clicked');
             e.preventDefault();
             
-            console.log("Create Entry button clicked");
+            const isRichTextMode = richTextContainer && !richTextContainer.classList.contains('d-none');
             
-            // Get form values
-            const entryTitle = document.getElementById('text-file-name').value;
-            const content = document.getElementById('text-file-content').value;
-            
-            // Get project ID
-            const projectId = getProjectIdFromPage();
-            
-            if (!projectId) {
-                alert("Error: Could not determine project ID. Please reload the page and try again.");
-                return;
-            }
-            
-            console.log(`Creating entry with title "${entryTitle}" for project ID ${projectId}`);
-            
-            // Create form data
-            const formData = new FormData();
-            formData.append('filename', entryTitle);
-            formData.append('content', content);
-            
-            // Submit the data
-            fetch(`/api/projects/${projectId}/files`, {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    console.log("Entry created successfully");
+            if (isRichTextMode) {
+                // Switch to plain text
+                console.log('Switching to plain text mode');
+                if (richTextContainer) richTextContainer.classList.add('d-none');
+                if (plainTextContainer) plainTextContainer.classList.remove('d-none');
+                
+                // Convert rich text to plain text
+                if (richTextEditor && plainTextEditor) {
+                    let content = richTextEditor.innerHTML;
+                    // Convert <br> to newlines
+                    content = content.replace(/<br\s*\/?>/gi, '\n');
+                    // Convert <div> or <p> to newlines
+                    content = content.replace(/<div>/gi, '\n').replace(/<\/div>/gi, '');
+                    content = content.replace(/<p>/gi, '').replace(/<\/p>/gi, '\n');
+                    // Remove other HTML tags but keep their content
+                    content = content.replace(/<[^>]*>/g, '');
+                    // Fix double newlines
+                    content = content.replace(/\n\n+/g, '\n\n');
                     
-                    // Close the modal
-                    const modal = bootstrap.Modal.getInstance(document.getElementById('create-text-file-modal'));
-                    if (modal) {
-                        modal.hide();
-                    }
-                    
-                    // Reload page to show the new file
-                    window.location.reload();
-                } else {
-                    alert('Failed to create entry: ' + (data.message || 'Unknown error'));
+                    plainTextEditor.value = content;
                 }
-            })
-            .catch(error => {
-                console.error('Error creating entry:', error);
-                alert('Error creating entry. Please try again.');
+                
+                // Update the button text
+                richTextToggle.innerHTML = '<i class="fas fa-pen-fancy"></i> Rich Text';
+                
+            } else {
+                // Switch to rich text
+                console.log('Switching to rich text mode');
+                if (richTextContainer) richTextContainer.classList.remove('d-none');
+                if (plainTextContainer) plainTextContainer.classList.add('d-none');
+                
+                // Convert plain text to rich text
+                if (richTextEditor && plainTextEditor) {
+                    let content = plainTextEditor.value;
+                    // Convert newlines to <br>
+                    content = content.replace(/\n/g, '<br>');
+                    richTextEditor.innerHTML = content;
+                }
+                
+                // Update the button text
+                richTextToggle.innerHTML = '<i class="fas fa-code"></i> Plain Text';
+                
+                // Focus the rich text editor
+                if (richTextEditor) richTextEditor.focus();
+            }
+        });
+    } else {
+        console.warn('Rich text toggle button not found');
+    }
+    
+    // Set up rich text formatting buttons
+    setupRichTextFormatting();
+});
+
+// Rich text formatting functions
+function setupRichTextFormatting() {
+    const formatButtons = {
+        'format-bold': 'bold',
+        'format-italic': 'italic',
+        'format-underline': 'underline',
+        'format-h2': 'h2',
+        'format-h3': 'h3',
+        'format-ul': 'insertUnorderedList',
+        'format-ol': 'insertOrderedList'
+    };
+    
+    // Add event listeners to formatting buttons
+    for (const [buttonId, command] of Object.entries(formatButtons)) {
+        const button = document.getElementById(buttonId);
+        if (button) {
+            button.addEventListener('click', function() {
+                if (command === 'h2' || command === 'h3') {
+                    document.execCommand('formatBlock', false, `<${command}>`);
+                } else {
+                    document.execCommand(command, false, null);
+                }
+                // Focus the editor after format change
+                const editor = document.getElementById('rich-text-editor');
+                if (editor) editor.focus();
             });
+        }
+    }
+    
+    // Set up the rich text editor to handle content editable
+    const editor = document.getElementById('rich-text-editor');
+    if (editor) {
+        editor.addEventListener('keydown', function(e) {
+            // Ensure when Enter is pressed we create a <br> not a <div>
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                document.execCommand('insertLineBreak');
+            }
         });
     }
-});
+}
 
 // Export window.currentProject globally for direct access
 window.currentProject = {
