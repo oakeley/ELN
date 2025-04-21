@@ -218,10 +218,6 @@ For PDF export to work properly:
    - texlive-latex-extra (additional packages including 'pdfpages' for PDF merging)
 3. You can test your LaTeX setup using the provided `test_pdf_export.py` script
 
-```bash
-sudo apt-get install texlive-latex-base texlive-fonts-recommended texlive-fonts-extra texlive-latex-extra
-```
-
 ### SSH Key Setup
 
 For GitHub integration to work properly, you need to:
