@@ -16,22 +16,6 @@ import re
 from .rtf_handler import is_rtf_content, extract_text_from_rtf, process_rtf_file, handle_content_update
 from .digital_signature import DigitalSignature
 
-# Create blueprint
-main_bp = Blueprint('main', __name__)
-
-# Initialize integrations
-def get_neo4j():
-    return Neo4jIntegration()
-
-def get_github():
-    return GitHubIntegration()
-
-def get_ollama():
-    return OllamaIntegration()
-
-def get_latex():
-    return LatexExport()
-
 # Initialize signature manager
 def get_signature_manager():
     return DigitalSignature()
@@ -175,36 +159,28 @@ def add_file_signature(file_id):
         'signature': signature
     })
 
+# Create blueprint
+main_bp = Blueprint('main', __name__)
+
+# Initialize integrations
+def get_neo4j():
+    return Neo4jIntegration()
+
+def get_github():
+    return GitHubIntegration()
+
+def get_ollama():
+    return OllamaIntegration()
+
+def get_latex():
+    return LatexExport()
+
 # Route for home page
 @main_bp.route('/')
 def index():
     return render_template('index.html')
 
 # Authentication routes
-@main_bp.route('/api/auth/reset-password', methods=['POST'])
-def reset_password():
-    """Reset a user's password without email verification (for testing purposes)"""
-    data = request.get_json()
-    username = data.get('username')
-    new_password = data.get('new_password')
-    
-    if not username or not new_password:
-        return jsonify({'success': False, 'message': 'Username and new password are required'}), 400
-    
-    # Find the user
-    user = User.query.filter_by(username=username).first()
-    
-    if not user:
-        # Return success even if user doesn't exist for security reasons
-        # This prevents username enumeration attacks
-        return jsonify({'success': True, 'message': 'If the username exists, the password has been reset'})
-    
-    # Update the password
-    user.password_hash = hash_password(new_password)
-    db.session.commit()
-    
-    return jsonify({'success': True, 'message': 'If the username exists, the password has been reset'})
-
 @main_bp.route('/api/auth/register', methods=['POST'])
 def register():
     data = request.get_json()
@@ -811,3 +787,419 @@ def update_file(file_id):
         except Exception as rtf_err:
             print(f"Error processing RTF content: {rtf_err}")
             # Keep the original content if extraction fails
+    
+    # Update file content
+    file.content = new_content
+    if hasattr(file, 'rtf_content'):
+        file.rtf_content = new_rtf_content
+    file.updated_at = datetime.utcnow()
+    
+    # Create new version
+    last_version = FileVersion.query.filter_by(file_id=file.id).order_by(FileVersion.version_number.desc()).first()
+    version_number = 1
+    if last_version:
+        version_number = last_version.version_number + 1
+    
+    # Create version with RTF support
+    version = FileVersion(
+        version_number=version_number,
+        content=new_content,
+        rtf_content=new_rtf_content if hasattr(file, 'rtf_content') else None,
+        file_path=file.file_path,
+        commit_message=commit_message,
+        file_id=file.id
+    )
+    
+    db.session.add(version)
+    db.session.commit()
+    
+    # Update Neo4j
+    try:
+        neo4j = get_neo4j()
+        neo4j.create_file_node(file.id, file.filename, file.file_type, file.content, file.project_id)
+        
+        # Re-extract keywords with Ollama
+        ollama = get_ollama()
+        keywords_result = ollama.extract_keywords(file.content)
+        
+        if keywords_result['success']:
+            for keyword in keywords_result['keywords']:
+                neo4j.add_keyword_to_file(file.id, keyword)
+    except Exception as e:
+        # Log error but continue
+        print(f"Integration error: {str(e)}")
+    
+    response_data = {
+        'success': True,
+        'file': {
+            'id': file.id,
+            'filename': file.filename,
+            'file_type': file.file_type,
+            'content': file.content,
+            'created_at': file.created_at.isoformat(),
+            'updated_at': file.updated_at.isoformat(),
+            'version': version_number
+        }
+    }
+    
+    # Add RTF content to response if available
+    if hasattr(file, 'rtf_content') and file.rtf_content:
+        response_data['file']['rtf_content'] = file.rtf_content
+        response_data['file']['has_rtf'] = True
+    
+    return jsonify(response_data)
+
+@main_bp.route('/api/files/<int:file_id>', methods=['DELETE'])
+def delete_file(file_id):
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'message': 'Not logged in'}), 401
+    
+    user_id = session['user_id']
+    file = File.query.join(Project).filter(File.id == file_id, Project.user_id == user_id).first()
+    
+    if not file:
+        return jsonify({'success': False, 'message': 'File not found'}), 404
+    
+    # Delete physical file if it exists
+    if os.path.exists(file.file_path):
+        try:
+            os.remove(file.file_path)
+        except Exception as e:
+            print(f"Error deleting file {file.file_path}: {str(e)}")
+    
+    # Delete file from database
+    db.session.delete(file)
+    db.session.commit()
+    
+    return jsonify({'success': True})
+
+@main_bp.route('/api/files/<int:file_id>/versions/<int:version_id>', methods=['GET'])
+def get_file_version(file_id, version_id):
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'message': 'Not logged in'}), 401
+    
+    user_id = session['user_id']
+    file = File.query.join(Project).filter(File.id == file_id, Project.user_id == user_id).first()
+    
+    if not file:
+        return jsonify({'success': False, 'message': 'File not found'}), 404
+    
+    version = FileVersion.query.filter_by(id=version_id, file_id=file.id).first()
+    
+    if not version:
+        return jsonify({'success': False, 'message': 'Version not found'}), 404
+    
+    response_data = {
+        'success': True,
+        'version': {
+            'id': version.id,
+            'version_number': version.version_number,
+            'content': version.content,
+            'commit_message': version.commit_message,
+            'created_at': version.created_at.isoformat()
+        }
+    }
+    
+    # Add RTF content if available
+    if hasattr(version, 'rtf_content') and version.rtf_content:
+        response_data['version']['rtf_content'] = version.rtf_content
+        response_data['version']['has_rtf'] = True
+    
+    return jsonify(response_data)
+
+# Image enhancement routes
+@main_bp.route('/api/files/<int:file_id>/enhance', methods=['POST'])
+def enhance_image(file_id):
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'message': 'Not logged in'}), 401
+    
+    user_id = session['user_id']
+    file = File.query.join(Project).filter(File.id == file_id, Project.user_id == user_id).first()
+    
+    if not file:
+        return jsonify({'success': False, 'message': 'File not found'}), 404
+    
+    # Check if file is an image
+    if file.file_type != 'image':
+        return jsonify({'success': False, 'message': 'File is not an image'}), 400
+    
+    data = request.get_json()
+    enhancement_type = data.get('type', 'stable_diffusion')
+    
+    # Generate enhanced filename
+    name, ext = os.path.splitext(file.filename)
+    enhanced_filename = f"{name}_enhanced{ext}"
+    enhanced_file_path = os.path.join(current_app.config['UPLOAD_FOLDER'], enhanced_filename)
+    
+    # Apply enhancement
+    if enhancement_type == 'stable_diffusion':
+        from app.utils import enhance_image_with_stable_diffusion
+        success = enhance_image_with_stable_diffusion(file.file_path, enhanced_file_path)
+    elif enhancement_type == 'ollama':
+        ollama = get_ollama()
+        result = ollama.enhance_image_to_line_art(file.file_path, enhanced_file_path)
+        success = result['success']
+    else:
+        return jsonify({'success': False, 'message': 'Invalid enhancement type'}), 400
+    
+    if not success:
+        return jsonify({'success': False, 'message': 'Failed to enhance image'}), 500
+    
+    # Create new file for enhanced image
+    enhanced_file = File(
+        filename=enhanced_filename,
+        file_path=enhanced_file_path,
+        file_type='image',
+        project_id=file.project_id
+    )
+    
+    db.session.add(enhanced_file)
+    db.session.commit()
+    
+    # Add to Neo4j
+    try:
+        neo4j = get_neo4j()
+        neo4j.create_file_node(enhanced_file.id, enhanced_file.filename, enhanced_file.file_type, "", file.project_id)
+        
+        # Connect the original and enhanced images
+        # Add a relationship in Neo4j
+    except Exception as e:
+        # Log error but continue
+        print(f"Neo4j error: {str(e)}")
+    
+    return jsonify({
+        'success': True,
+        'file': {
+            'id': enhanced_file.id,
+            'filename': enhanced_file.filename,
+            'file_type': enhanced_file.file_type,
+            'created_at': enhanced_file.created_at.isoformat(),
+            'updated_at': enhanced_file.updated_at.isoformat()
+        }
+    })
+
+# GitHub integration routes
+@main_bp.route('/api/github/verify-ssh', methods=['GET'])
+def verify_github_ssh():
+    """Verify that SSH keys are set up correctly for GitHub"""
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'message': 'Not logged in'}), 401
+    
+    # Verify SSH keys
+    github = get_github()
+    result = github.verify_ssh_setup()
+    
+    return jsonify(result)
+
+@main_bp.route('/api/github/import', methods=['POST'])
+def import_from_github():
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'message': 'Not logged in'}), 401
+    
+    user_id = session['user_id']
+    data = request.get_json()
+    repo_url = data.get('repo_url')
+    
+    if not repo_url:
+        return jsonify({'success': False, 'message': 'Repository URL or name is required'}), 400
+    
+    # Check SSH connection first
+    github = get_github()
+    ssh_result = github.verify_ssh_setup()
+    
+    if not ssh_result['success']:
+        return jsonify({
+            'success': False, 
+            'message': 'GitHub SSH authentication is not set up correctly.',
+            'error': ssh_result.get('error', 'Unknown SSH error'),
+            'ssh_error': True
+        }), 400
+    
+    # Import from GitHub
+    result = github.import_project_from_github(repo_url, user_id)
+    
+    if not result['success']:
+        return jsonify({'success': False, 'message': result.get('error', 'Failed to import from GitHub')}), 500
+    
+    project = result['project']
+    
+    return jsonify({
+        'success': True,
+        'project': {
+            'id': project.id,
+            'name': project.name,
+            'description': project.description,
+            'created_at': project.created_at.isoformat(),
+            'updated_at': project.updated_at.isoformat(),
+            'github_repo': project.github_repo
+        },
+        'repo': result.get('repo', {})
+    })
+
+# LaTeX export route
+@main_bp.route('/api/projects/<int:project_id>/export/pdf', methods=['GET'])
+def export_to_pdf(project_id):
+    print(f"PDF export requested for project_id: {project_id}")
+    
+    if 'user_id' not in session:
+        print("User not logged in")
+        return jsonify({'success': False, 'message': 'Not logged in'}), 401
+    
+    user_id = session['user_id']
+    print(f"User ID: {user_id}")
+    
+    project = Project.query.filter_by(id=project_id, user_id=user_id).first()
+    
+    if not project:
+        print(f"Project {project_id} not found for user {user_id}")
+        return jsonify({'success': False, 'message': 'Project not found'}), 404
+    
+    print(f"Project found: {project.name}")
+    
+    # Get files
+    files = File.query.filter_by(project_id=project.id).all()
+    print(f"Found {len(files)} files for project")
+    
+    try:
+        # Export to PDF
+        latex = get_latex()
+        
+        print("Calling export_project_to_pdf")
+        result = latex.export_project_to_pdf(project, files)
+        
+        # Log the result structure
+        print(f"Export result type: {type(result)}")
+        if isinstance(result, dict):
+            print(f"Result keys: {list(result.keys())}")
+            print(f"Success: {result.get('success', False)}")
+        else:
+            print(f"Result is not a dictionary: {result}")
+            return jsonify({'success': False, 'message': 'Invalid result format from PDF generator'}), 500
+        
+        # Check success
+        if not result.get('success', False):
+            error_msg = result.get('error', 'Unknown error in PDF generation')
+            print(f"PDF export failed: {error_msg}")
+            return jsonify({'success': False, 'message': error_msg}), 500
+        
+        # Return PDF
+        print("PDF generation successful, preparing response")
+        
+        if 'pdf_path' in result:
+            print(f"Sending PDF from file: {result['pdf_path']}")
+            return send_file(
+                result['pdf_path'], 
+                download_name=f"{project.name}.pdf",
+                as_attachment=True,
+                mimetype='application/pdf'
+            )
+        elif 'pdf_content' in result and result['pdf_content']:
+            print(f"Sending PDF from memory, size: {len(result['pdf_content'])} bytes")
+            return send_file(
+                io.BytesIO(result['pdf_content']),
+                mimetype='application/pdf',
+                as_attachment=True,
+                download_name=f"{project.name}.pdf"
+            )
+        else:
+            print("No PDF content found in result")
+            return jsonify({'success': False, 'message': 'PDF was not generated'}), 500
+            
+    except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"Exception in PDF export: {str(e)}")
+        print(f"Traceback: {error_details}")
+        return jsonify({'success': False, 'message': f'Error generating PDF: {str(e)}'}), 500
+
+# Search routes
+@main_bp.route('/api/search', methods=['GET'])
+def search():
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'message': 'Not logged in'}), 401
+
+    user_id = session['user_id']
+    query = request.args.get('q', '')
+
+    if not query:
+        return jsonify({'success': False, 'message': 'Query is required'}), 400
+
+    # Get projects for this user
+    projects = Project.query.filter_by(user_id=user_id).all()
+
+    # Prepare data for search
+    projects_data = []
+    for project in projects:
+        project_data = {
+            'id': project.id,
+            'name': project.name,
+            'description': project.description,
+            'files': []
+        }
+
+        for file in project.files:
+            file_data = {
+                'id': file.id,
+                'filename': file.filename,
+                'file_type': file.file_type,
+                'content': file.content if file.file_type == 'text' else None
+            }
+            project_data['files'].append(file_data)
+
+        projects_data.append(project_data)
+
+    # Use Ollama for semantic search
+    ollama = get_ollama()
+    search_results = ollama.search_projects(query, projects_data)
+
+    if not search_results['success']:
+        return jsonify({'success': False, 'message': search_results.get('error', 'Search failed')}), 500
+
+    # Enhance with Neo4j data
+    try:
+        keywords = query.split()
+        neo4j = get_neo4j()
+        related_files = neo4j.find_related_files(keywords)
+
+        for result in search_results['results']:
+            for file_info in related_files:
+                if str(result['project']['id']) == str(file_info['project_id']):
+                    if 'neo4j_relevance' not in result:
+                        result['neo4j_relevance'] = []
+                    result['neo4j_relevance'].append({
+                        'file_id': file_info['file_id'],
+                        'filename': file_info['filename'],
+                        'relevance': file_info['relevance']
+                    })
+    except Exception as e:
+        print(f"Neo4j enrichment error: {str(e)}")
+
+    return jsonify({
+        'success': True,
+        'results': search_results['results']
+    })
+
+@main_bp.route('/api/auth/reset-password', methods=['POST'])
+def reset_password():
+    """Reset a user's password without email verification (for testing purposes)"""
+    data = request.get_json()
+    username = data.get('username')
+    new_password = data.get('new_password')
+    
+    if not username or not new_password:
+        return jsonify({'success': False, 'message': 'Username and new password are required'}), 400
+    
+    # Find the user
+    user = User.query.filter_by(username=username).first()
+    
+    if not user:
+        # Return success even if user doesn't exist for security reasons
+        # This prevents username enumeration attacks
+        return jsonify({'success': True, 'message': 'If the username exists, the password has been reset'})
+    
+    # Update the password
+    user.password_hash = hash_password(new_password)
+    db.session.commit()
+    
+    return jsonify({'success': True, 'message': 'If the username exists, the password has been reset'})
+

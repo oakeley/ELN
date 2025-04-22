@@ -186,6 +186,9 @@ document.addEventListener('DOMContentLoaded', () => {
         registerForm: document.getElementById('register-form'),
         loginError: document.getElementById('login-error'),
         registerError: document.getElementById('register-error'),
+        resetTab: document.getElementById('reset-tab'),
+        resetForm: document.getElementById('reset-form'),
+        resetError: document.getElementById('reset-error'),
         
         // Project elements
         projectsContainer: document.getElementById('projects-container'),
@@ -534,6 +537,24 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         },
 
+        // Reset Password
+        async resetPassword(username, newPassword) {
+            try {
+                const response = await fetch('/api/auth/reset-password', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ username, new_password: newPassword })
+                });
+                
+                return await response.json();
+            } catch (error) {
+                console.error('Error resetting password:', error);
+                return { success: false, message: 'Network error' };
+            }
+        },
+
         // GitHub Import
         async importFromGithub(repoUrl) {
             try {
@@ -584,6 +605,44 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         },
         
+        // Reset
+        async handleResetPassword(e) {
+            e.preventDefault();
+            
+            const username = document.getElementById('reset-username').value;
+            const newPassword = document.getElementById('reset-new-password').value;
+            const confirmPassword = document.getElementById('reset-confirm-password').value;
+            
+            // Basic validation
+            if (!username || !newPassword) {
+                ui.resetError.textContent = 'Username and new password are required';
+                ui.resetError.classList.remove('d-none');
+                return;
+            }
+            
+            if (newPassword !== confirmPassword) {
+                ui.resetError.textContent = 'Passwords do not match';
+                ui.resetError.classList.remove('d-none');
+                return;
+            }
+            
+            const result = await api.resetPassword(username, newPassword);
+            
+            if (result.success) {
+                alert('Password has been reset. Please login with your new password.');
+                ui.resetError.classList.add('d-none');
+                ui.resetForm.reset();
+                
+                // Switch to login tab
+                if (ui.loginTab) {
+                    ui.loginTab.click();
+                }
+            } else {
+                ui.resetError.textContent = result.message || 'Password reset failed';
+                ui.resetError.classList.remove('d-none');
+            }
+        },
+
         async handleRegister(e) {
             e.preventDefault();
             console.log("Register form submitted");
@@ -1165,23 +1224,52 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         ui.logoutButton.addEventListener('click', handlers.handleLogout);
         
+        if (ui.resetForm) {
+            ui.resetForm.addEventListener('submit', handlers.handleResetPassword);
+        }
+
+        const forgotPasswordLink = document.getElementById('forgot-password-link');
+        if (forgotPasswordLink && ui.resetTab) {
+            forgotPasswordLink.addEventListener('click', (e) => {
+                e.preventDefault();
+                ui.resetTab.click();
+            });
+        }
+
         ui.loginTab.addEventListener('click', (e) => {
             e.preventDefault();
             ui.loginTab.classList.add('active');
             ui.registerTab.classList.remove('active');
+            ui.resetTab.classList.remove('active');
             ui.loginForm.classList.remove('d-none');
             ui.registerForm.classList.add('d-none');
+            ui.resetForm.classList.add('d-none');
             console.log("Switched to login tab");
         });
-        
+
         ui.registerTab.addEventListener('click', (e) => {
             e.preventDefault();
             ui.registerTab.classList.add('active');
             ui.loginTab.classList.remove('active');
+            ui.resetTab.classList.remove('active');
             ui.registerForm.classList.remove('d-none');
             ui.loginForm.classList.add('d-none');
+            ui.resetForm.classList.add('d-none');
             console.log("Switched to register tab");
         });
+
+        if (ui.resetTab) {
+            ui.resetTab.addEventListener('click', (e) => {
+                e.preventDefault();
+                ui.resetTab.classList.add('active');
+                ui.loginTab.classList.remove('active');
+                ui.registerTab.classList.remove('active');
+                ui.resetForm.classList.remove('d-none');
+                ui.loginForm.classList.add('d-none');
+                ui.registerForm.classList.add('d-none');
+                console.log("Switched to reset tab");
+            });
+        }
         
         // Projects
         ui.createProjectButton.addEventListener('click', () => {

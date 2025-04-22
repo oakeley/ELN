@@ -43,23 +43,28 @@
 
     <!-- Main content -->
     <div class="container mt-4">
-        <!-- Login/Register section -->
-        <section id="auth-section" class="mb-4">
+        <!-- Login/Register/Reset section -->
+        <div id="auth-section" class="container mt-5">
             <div class="row justify-content-center">
                 <div class="col-md-6">
                     <div class="card">
                         <div class="card-header">
                             <ul class="nav nav-tabs card-header-tabs" id="auth-tabs">
                                 <li class="nav-item">
-                                    <a class="nav-link active" id="login-tab" href="#">Login</a>
+                                    <a class="nav-link active" id="login-tab" href="#login">Login</a>
                                 </li>
                                 <li class="nav-item">
-                                    <a class="nav-link" id="register-tab" href="#">Register</a>
+                                    <a class="nav-link" id="register-tab" href="#register">Register</a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link" id="reset-tab" href="#reset">Reset Password</a>
                                 </li>
                             </ul>
                         </div>
                         <div class="card-body">
-                            <form id="login-form">
+                            <!-- Login Form -->
+                            <form id="login-form" class="needs-validation">
+                                <div class="alert alert-danger d-none" id="login-error"></div>
                                 <div class="mb-3">
                                     <label for="login-username" class="form-label">Username</label>
                                     <input type="text" class="form-control" id="login-username" required>
@@ -67,31 +72,57 @@
                                 <div class="mb-3">
                                     <label for="login-password" class="form-label">Password</label>
                                     <input type="password" class="form-control" id="login-password" required>
+                                    <div class="mt-1">
+                                        <a href="#" id="forgot-password-link" class="text-muted small">Forgot password?</a>
+                                    </div>
                                 </div>
                                 <button type="submit" class="btn btn-primary">Login</button>
-                                <div class="alert alert-danger mt-3 d-none" id="login-error"></div>
                             </form>
-                            <form id="register-form" class="d-none">
+                            
+                            <!-- Register Form -->
+                            <form id="register-form" class="needs-validation d-none">
+                                <div class="alert alert-danger d-none" id="register-error"></div>
                                 <div class="mb-3">
                                     <label for="register-username" class="form-label">Username</label>
                                     <input type="text" class="form-control" id="register-username" required>
                                 </div>
                                 <div class="mb-3">
-                                    <label for="register-email" class="form-label">Email</label>
+                                    <label for="register-email" class="form-label">Email (optional)</label>
                                     <input type="email" class="form-control" id="register-email">
                                 </div>
                                 <div class="mb-3">
                                     <label for="register-password" class="form-label">Password</label>
                                     <input type="password" class="form-control" id="register-password" required>
                                 </div>
+                                <div class="mb-3">
+                                    <label for="register-confirm-password" class="form-label">Confirm Password</label>
+                                    <input type="password" class="form-control" id="register-confirm-password" required>
+                                </div>
                                 <button type="submit" class="btn btn-primary">Register</button>
-                                <div class="alert alert-danger mt-3 d-none" id="register-error"></div>
+                            </form>
+                            
+                            <!-- Reset Password Form -->
+                            <form id="reset-form" class="needs-validation d-none">
+                                <div class="alert alert-danger d-none" id="reset-error"></div>
+                                <div class="mb-3">
+                                    <label for="reset-username" class="form-label">Username</label>
+                                    <input type="text" class="form-control" id="reset-username" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="reset-new-password" class="form-label">New Password</label>
+                                    <input type="password" class="form-control" id="reset-new-password" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="reset-confirm-password" class="form-label">Confirm New Password</label>
+                                    <input type="password" class="form-control" id="reset-confirm-password" required>
+                                </div>
+                                <button type="submit" class="btn btn-primary">Reset Password</button>
                             </form>
                         </div>
                     </div>
                 </div>
             </div>
-        </section>
+        </div>
 
         <!-- Projects section -->
         <section id="projects-section" class="d-none">
